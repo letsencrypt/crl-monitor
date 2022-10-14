@@ -1,8 +1,10 @@
 package churner
 
 import (
+	"context"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/certificate"
 	"github.com/go-acme/lego/v4/cmd"
@@ -26,7 +28,9 @@ func New(baseDomain string) (*Churner, error) {
 		return nil, err
 	}
 
-	database, err := db.New()
+	awsCfg := aws.NewConfig()
+
+	database, err := db.New(awsCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +43,7 @@ func New(baseDomain string) (*Churner, error) {
 }
 
 // Churn issues a certificate, revokes it, and stores the result in DynamoDB
-func (c *Churner) Churn() error {
+func (c *Churner) Churn(ctx context.Context) error {
 	resource, err := c.legoClient.Certificate.Obtain(certificate.ObtainRequest{
 		Domains: []string{c.RandDomain()},
 	})
@@ -58,7 +62,7 @@ func (c *Churner) Churn() error {
 		return err
 	}
 
-	return c.db.AddCert(certs[0], time.Now())
+	return c.db.AddCert(ctx, certs[0], time.Now())
 }
 
 func (c *Churner) RandDomain() string {

@@ -15,7 +15,7 @@ func HandleRequest(ctx context.Context) error {
 		return fmt.Errorf("error in setup: %w", err)
 	}
 
-	err = c.Churn()
+	err = c.Churn(ctx)
 	if err != nil {
 		return fmt.Errorf("error in churning: %w", err)
 	}

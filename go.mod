@@ -2,7 +2,12 @@ module github.com/letsencrypt/crl-monitor
 
 go 1.19
 
-require github.com/aws/aws-lambda-go v1.34.1
+require (
+	github.com/aws/aws-lambda-go v1.34.1
+	github.com/aws/aws-sdk-go-v2 v1.16.16
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.10.0
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.17.1
+)
 
 require (
 	cloud.google.com/go v0.54.0 // indirect
@@ -22,6 +27,12 @@ require (
 	github.com/aliyun/alibaba-cloud-sdk-go v1.61.1755 // indirect
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129 // indirect
 	github.com/aws/aws-sdk-go v1.39.0 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.23 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.17 // indirect
+	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.13.20 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.9.9 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.7.17 // indirect
+	github.com/aws/smithy-go v1.13.3 // indirect
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/civo/civogo v0.3.11 // indirect
 	github.com/cloudflare/cloudflare-go v0.49.0 // indirect
