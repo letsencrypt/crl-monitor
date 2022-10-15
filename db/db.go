@@ -11,35 +11,46 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
+// ddb is fulfilled by a dynamodb.Client and is used for mocking in tests.
+type ddb interface {
+	BatchWriteItem(context.Context, *dynamodb.BatchWriteItemInput, ...func(*dynamodb.Options)) (*dynamodb.BatchWriteItemOutput, error)
+	PutItem(context.Context, *dynamodb.PutItemInput, ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
+	Query(context.Context, *dynamodb.QueryInput, ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
+}
+
 type Database struct {
-	table  string
-	dynamo *dynamodb.Client
+	Table  string
+	Dynamo ddb
 }
 
 func New(cfg *aws.Config) (*Database, error) {
 	return &Database{
-		dynamo: dynamodb.NewFromConfig(*cfg),
+		Dynamo: dynamodb.NewFromConfig(*cfg),
 	}, nil
 }
 
 type CertMetadata struct {
-	SerialNumber   []byte    `dynamodbav:"SN"`
+	CertKey
 	RevocationTime time.Time `dynamodbav:"RT,unixtime"`
+}
+
+type CertKey struct {
+	SerialNumber []byte `dynamodbav:"SN"`
 }
 
 // AddCert inserts the metadata for monitoring
 func (db *Database) AddCert(ctx context.Context, certificate *x509.Certificate, revocationTime time.Time) error {
 	item, err := attributevalue.MarshalMap(CertMetadata{
-		SerialNumber:   certificate.SerialNumber.Bytes(),
+		CertKey:        CertKey{certificate.SerialNumber.Bytes()},
 		RevocationTime: revocationTime,
 	})
 	if err != nil {
 		return err
 	}
 
-	_, err = db.dynamo.PutItem(ctx, &dynamodb.PutItemInput{
+	_, err = db.Dynamo.PutItem(ctx, &dynamodb.PutItemInput{
 		Item:      item,
-		TableName: &db.table,
+		TableName: &db.Table,
 	})
 	if err != nil {
 		return err
@@ -54,8 +65,8 @@ func (db *Database) AddCert(ctx context.Context, certificate *x509.Certificate, 
 // TODO:  This could be even more efficient if we knew what shard a cert would
 // TODO:  be in, so that we can only query certs for this shard.
 func (db *Database) GetAllCerts(ctx context.Context) ([]CertMetadata, error) {
-	resp, err := db.dynamo.Query(ctx, &dynamodb.QueryInput{
-		TableName: &db.table,
+	resp, err := db.Dynamo.Query(ctx, &dynamodb.QueryInput{
+		TableName: &db.Table,
 		Select:    types.SelectAllAttributes,
 	})
 	if err != nil {
@@ -69,4 +80,29 @@ func (db *Database) GetAllCerts(ctx context.Context) ([]CertMetadata, error) {
 	}
 
 	return certs, nil
+}
+
+// DeleteSerials takes a list of serials that we've seen in the CRL and thus
+// no longer need to keep an eye out for.
+func (db *Database) DeleteSerials(ctx context.Context, serialNumbers [][]byte) error {
+	var deletes []types.WriteRequest
+	for _, serial := range serialNumbers {
+		key, err := attributevalue.MarshalMap(CertKey{SerialNumber: serial})
+		if err != nil {
+			return err
+		}
+		deletes = append(deletes, types.WriteRequest{
+			DeleteRequest: &types.DeleteRequest{
+				Key: key,
+			},
+		})
+	}
+
+	_, err := db.Dynamo.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
+		RequestItems: map[string][]types.WriteRequest{db.Table: deletes},
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
