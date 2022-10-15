@@ -10,19 +10,29 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/letsencrypt/crl-monitor/db"
 	"github.com/letsencrypt/crl-monitor/db/mock"
 )
 
-func TestAPI(t *testing.T) {
-	db := mock.NewMockedDB(t)
+func TestDatabaseWithMock(t *testing.T) {
+	smoketest(t, mock.NewMockedDB(t))
+}
+
+// smoketest goes through a set of basic actions ensuring the basics work
+// It gets run with a mocked database and can also be integration tested against
+// the real DynamoDB, or the downloadable version, to ensure they align.
+func smoketest(t *testing.T, handle *db.Database) {
 	ctx := context.Background()
 
-	require.NoError(t, db.AddCert(ctx, &x509.Certificate{SerialNumber: big.NewInt(111)}, time.Now()))
-	require.NoError(t, db.AddCert(ctx, &x509.Certificate{SerialNumber: big.NewInt(444444)}, time.Now()))
-	require.NoError(t, db.AddCert(ctx, &x509.Certificate{SerialNumber: big.NewInt(606060)}, time.Now()))
-	require.NoError(t, db.AddCert(ctx, &x509.Certificate{SerialNumber: big.NewInt(123456)}, time.Now()))
+	ts1 := time.Now()
+	ts2 := time.Now().Add(100 * time.Hour)
 
-	certs, err := db.GetAllCerts(ctx)
+	require.NoError(t, handle.AddCert(ctx, &x509.Certificate{SerialNumber: big.NewInt(111)}, ts1))
+	require.NoError(t, handle.AddCert(ctx, &x509.Certificate{SerialNumber: big.NewInt(444444)}, ts1))
+	require.NoError(t, handle.AddCert(ctx, &x509.Certificate{SerialNumber: big.NewInt(606060)}, ts2))
+	require.NoError(t, handle.AddCert(ctx, &x509.Certificate{SerialNumber: big.NewInt(123456)}, ts2))
+
+	certs, err := handle.GetAllCerts(ctx)
 	require.NoError(t, err)
 	require.Len(t, certs, 4)
 
@@ -33,9 +43,13 @@ func TestAPI(t *testing.T) {
 		}
 	}
 
-	require.NoError(t, db.DeleteSerials(ctx, serials))
+	require.NoError(t, handle.DeleteSerials(ctx, serials))
 
-	empty, err := db.GetAllCerts(ctx)
+	remaining, err := handle.GetAllCerts(ctx)
 	require.NoError(t, err)
-	require.Len(t, empty, 1)
+	expected := []db.CertMetadata{
+		{CertKey: db.CertKey{SerialNumber: big.NewInt(606060).Bytes()},
+			RevocationTime: ts2.Round(time.Second)},
+	}
+	require.Equal(t, expected, remaining)
 }
