@@ -66,8 +66,8 @@ func (d *dynamoMock) PutItem(ctx context.Context, input *dynamodb.PutItemInput, 
 	return &dynamodb.PutItemOutput{}, nil
 }
 
-func (d *dynamoMock) Query(ctx context.Context, input *dynamodb.QueryInput, opts ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+func (d *dynamoMock) Scan(ctx context.Context, input *dynamodb.ScanInput, opts ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
 	require.Empty(d.t, opts, "Options not supported")
 	require.NotNil(d.t, input)
-	return &dynamodb.QueryOutput{Items: d.data}, nil
+	return &dynamodb.ScanOutput{Items: d.data}, nil
 }

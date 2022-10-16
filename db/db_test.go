@@ -49,7 +49,7 @@ func smoketest(t *testing.T, handle *db.Database) {
 	require.NoError(t, err)
 	expected := []db.CertMetadata{
 		{CertKey: db.CertKey{SerialNumber: big.NewInt(606060).Bytes()},
-			RevocationTime: ts2.Round(time.Second)},
+			RevocationTime: ts2.Truncate(time.Second)},
 	}
 	require.Equal(t, expected, remaining)
 }
