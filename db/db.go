@@ -15,7 +15,7 @@ import (
 type ddb interface {
 	BatchWriteItem(context.Context, *dynamodb.BatchWriteItemInput, ...func(*dynamodb.Options)) (*dynamodb.BatchWriteItemOutput, error)
 	PutItem(context.Context, *dynamodb.PutItemInput, ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
-	Query(context.Context, *dynamodb.QueryInput, ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
+	Scan(context.Context, *dynamodb.ScanInput, ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error)
 }
 
 type Database struct {
@@ -25,6 +25,7 @@ type Database struct {
 
 func New(cfg *aws.Config) (*Database, error) {
 	return &Database{
+		Table:  "unseen-certificates",
 		Dynamo: dynamodb.NewFromConfig(*cfg),
 	}, nil
 }
@@ -65,7 +66,7 @@ func (db *Database) AddCert(ctx context.Context, certificate *x509.Certificate, 
 // TODO:  This could be even more efficient if we knew what shard a cert would
 // TODO:  be in, so that we can only query certs for this shard.
 func (db *Database) GetAllCerts(ctx context.Context) ([]CertMetadata, error) {
-	resp, err := db.Dynamo.Query(ctx, &dynamodb.QueryInput{
+	resp, err := db.Dynamo.Scan(ctx, &dynamodb.ScanInput{
 		TableName: &db.Table,
 		Select:    types.SelectAllAttributes,
 	})
