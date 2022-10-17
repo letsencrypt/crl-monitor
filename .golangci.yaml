@@ -1,0 +1,19 @@
+linters:
+  disable-all: true
+  enable:
+    - gofmt
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+    - misspell
+    - staticcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - wastedassign
+linters-settings:
+  errcheck:
+    ignore: fmt:[FS]?[Pp]rint*,io:Write,os:Remove,net/http:Write,net:Write,encoding/binary:Write
