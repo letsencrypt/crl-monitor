@@ -45,11 +45,11 @@ func smoketest(t *testing.T, handle *db.Database) {
 	certs, err := handle.GetAllCerts(ctx)
 	require.NoError(t, err)
 	require.Len(t, certs, 4)
-	require.ElementsMatch(t, certs, []db.CertMetadata{
-		{CertKey: db.CertKey{SerialNumber: int111.Bytes()}, RevocationTime: ts1},
-		{CertKey: db.CertKey{SerialNumber: int4s.Bytes()}, RevocationTime: ts1},
-		{CertKey: db.CertKey{SerialNumber: int60s.Bytes()}, RevocationTime: ts2},
-		{CertKey: db.CertKey{SerialNumber: int123.Bytes()}, RevocationTime: ts2},
+	require.Equal(t, certs, map[string]db.CertMetadata{
+		"00000000000000000000000000000000006f": {CertKey: db.CertKey{SerialNumber: int111.Bytes()}, RevocationTime: ts1},
+		"00000000000000000000000000000006c81c": {CertKey: db.CertKey{SerialNumber: int4s.Bytes()}, RevocationTime: ts1},
+		"000000000000000000000000000000093f6c": {CertKey: db.CertKey{SerialNumber: int60s.Bytes()}, RevocationTime: ts2},
+		"00000000000000000000000000000001e240": {CertKey: db.CertKey{SerialNumber: int123.Bytes()}, RevocationTime: ts2},
 	})
 
 	// Delete all the serials other than the 606060 serial
@@ -64,8 +64,8 @@ func smoketest(t *testing.T, handle *db.Database) {
 	// The only remaining entry should be the serial 606060 one
 	remaining, err := handle.GetAllCerts(ctx)
 	require.NoError(t, err)
-	expected := []db.CertMetadata{
-		{CertKey: db.CertKey{SerialNumber: int60s.Bytes()}, RevocationTime: ts2},
+	expected := map[string]db.CertMetadata{
+		"000000000000000000000000000000093f6c": {CertKey: db.CertKey{SerialNumber: int60s.Bytes()}, RevocationTime: ts2},
 	}
 	require.Equal(t, expected, remaining)
 }
