@@ -1,6 +1,8 @@
 #!/bin/bash
-
 set -eux
+
+SCRIPT_PATH=${0%/*}
+cd "$SCRIPT_PATH"
 
 # Fetch the local DynamoDB if there isn't one here already
 if ! [ -d dynamodb_local ]; then
