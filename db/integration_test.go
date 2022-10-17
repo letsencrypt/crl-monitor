@@ -46,7 +46,11 @@ func makeTable(t *testing.T, handle *db.Database) {
 	require.NoError(t, err)
 }
 
-// TestIntegrationDynamoDB
+// TestIntegrationDynamoDB runs smoketest against a local DynamoDB.  The main
+// goal of this test is to ensure that the in-process mock behaves similarly to
+// the real dynamoDB, which is why we run the same smoketest against both.
+// That means developers don't need to always be running the local DynamoDB to
+// run most tests outside the db package.
 func TestIntegrationDynamoDB(t *testing.T) {
 	cfg := aws.NewConfig()
 	cfg.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(localResolver)
