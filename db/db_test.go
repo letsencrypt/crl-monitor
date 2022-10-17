@@ -27,29 +27,45 @@ func smoketest(t *testing.T, handle *db.Database) {
 	ts1 := time.Now()
 	ts2 := time.Now().Add(100 * time.Hour)
 
-	require.NoError(t, handle.AddCert(ctx, &x509.Certificate{SerialNumber: big.NewInt(111)}, ts1))
-	require.NoError(t, handle.AddCert(ctx, &x509.Certificate{SerialNumber: big.NewInt(444444)}, ts1))
-	require.NoError(t, handle.AddCert(ctx, &x509.Certificate{SerialNumber: big.NewInt(606060)}, ts2))
-	require.NoError(t, handle.AddCert(ctx, &x509.Certificate{SerialNumber: big.NewInt(123456)}, ts2))
+	int111 := big.NewInt(111)
+	int4s := big.NewInt(444444)
+	int60s := big.NewInt(606060)
+	int123 := big.NewInt(123456)
+
+	// Insert 4 entries into the database with different serials and revocation times
+	require.NoError(t, handle.AddCert(ctx, &x509.Certificate{SerialNumber: int111}, ts1))
+	require.NoError(t, handle.AddCert(ctx, &x509.Certificate{SerialNumber: int4s}, ts1))
+	require.NoError(t, handle.AddCert(ctx, &x509.Certificate{SerialNumber: int60s}, ts2))
+	require.NoError(t, handle.AddCert(ctx, &x509.Certificate{SerialNumber: int123}, ts2))
+
+	// Timestamps stored in Dynamo as unix timestamps are truncated to second precision
+	ts1 = ts1.Truncate(time.Second)
+	ts2 = ts2.Truncate(time.Second)
 
 	certs, err := handle.GetAllCerts(ctx)
 	require.NoError(t, err)
 	require.Len(t, certs, 4)
+	require.ElementsMatch(t, certs, []db.CertMetadata{
+		{CertKey: db.CertKey{SerialNumber: int111.Bytes()}, RevocationTime: ts1},
+		{CertKey: db.CertKey{SerialNumber: int4s.Bytes()}, RevocationTime: ts1},
+		{CertKey: db.CertKey{SerialNumber: int60s.Bytes()}, RevocationTime: ts2},
+		{CertKey: db.CertKey{SerialNumber: int123.Bytes()}, RevocationTime: ts2},
+	})
 
+	// Delete all the serials other than the 606060 serial
 	var serials [][]byte
 	for _, cert := range certs {
-		if !bytes.Equal(cert.SerialNumber, big.NewInt(606060).Bytes()) {
+		if !bytes.Equal(cert.SerialNumber, int60s.Bytes()) {
 			serials = append(serials, cert.SerialNumber)
 		}
 	}
-
 	require.NoError(t, handle.DeleteSerials(ctx, serials))
 
+	// The only remaining entry should be the serial 606060 one
 	remaining, err := handle.GetAllCerts(ctx)
 	require.NoError(t, err)
 	expected := []db.CertMetadata{
-		{CertKey: db.CertKey{SerialNumber: big.NewInt(606060).Bytes()},
-			RevocationTime: ts2.Truncate(time.Second)},
+		{CertKey: db.CertKey{SerialNumber: int60s.Bytes()}, RevocationTime: ts2},
 	}
 	require.Equal(t, expected, remaining)
 }
