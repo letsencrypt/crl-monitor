@@ -2,9 +2,10 @@ package churner
 
 import (
 	"context"
+	"fmt"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/certificate"
 	"github.com/go-acme/lego/v4/cmd"
@@ -21,24 +22,22 @@ type Churner struct {
 
 func New(baseDomain string) (*Churner, error) {
 	// TODO: persistent acme client setup
-	config := lego.NewConfig(&cmd.Account{})
+	legoCfg := lego.NewConfig(&cmd.Account{})
 
-	client, err := lego.NewClient(config)
+	client, err := lego.NewClient(legoCfg)
 	if err != nil {
 		return nil, err
 	}
 
-	awsCfg := aws.NewConfig()
-
-	database, err := db.New(awsCfg)
+	awsCfg, err := config.LoadDefaultConfig(context.Background())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error creating AWS config: %v", err)
 	}
 
 	return &Churner{
 		baseDomain: baseDomain,
 		legoClient: client,
-		db:         database,
+		db:         db.New(awsCfg),
 	}, nil
 }
 
