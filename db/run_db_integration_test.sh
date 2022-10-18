@@ -17,4 +17,6 @@ java -Djava.library.path=./dynamodb_local/DynamoDBLocal_lib -jar ./dynamodb_loca
 dynamopid=$!
 trap 'kill $dynamopid' EXIT
 
+sleep 1 # Let dynamodb start
+
 go test -tags integration .
