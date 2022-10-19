@@ -100,7 +100,7 @@ func Diff(old, new *x509.RevocationList) ([]*big.Int, error) {
 
 func (c *Checker) Check(ctx context.Context, bucket, object string) error {
 	// Read the current CRL shard
-	crl, version, err := c.storage.Fetch(ctx, bucket, object, nil)
+	crlDER, version, err := c.storage.Fetch(ctx, bucket, object, nil)
 	if err != nil {
 		return err
 	}
@@ -111,9 +111,18 @@ func (c *Checker) Check(ctx context.Context, bucket, object string) error {
 		return err
 	}
 
-	prev, _, err := c.storage.Fetch(ctx, bucket, object, &prevVersion)
+	prevDER, _, err := c.storage.Fetch(ctx, bucket, object, &prevVersion)
 	if err != nil {
 		return err
+	}
+
+	crl, err := x509.ParseRevocationList(crlDER)
+	if err != nil {
+		return fmt.Errorf("error parsing current crl: %v", err)
+	}
+	prev, err := x509.ParseRevocationList(prevDER)
+	if err != nil {
+		return fmt.Errorf("error parsing previous crl: %v", err)
 	}
 
 	err = CRLLint(crl)
