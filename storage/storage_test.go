@@ -94,21 +94,20 @@ func TestStorage(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		name        string
-		object      string
-		version     string
-		expectedVer string
+		name    string
+		object  string
+		version string
 	}{
 		{
-			name:    "no previous",
+			name:    "error no previous",
 			object:  "123/0.crl",
 			version: "444",
 		}, {
-			name:    "singleton",
+			name:    "error singleton",
 			object:  "456/2.crl",
 			version: "singleton",
 		}, {
-			name:    "not a real version",
+			name:    "error not a real version",
 			object:  "123/0.crl",
 			version: "moo-cow",
 		},
