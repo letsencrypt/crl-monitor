@@ -2,31 +2,40 @@ package churner
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/go-acme/lego/v4/certcrypto"
-	"github.com/go-acme/lego/v4/certificate"
-	"github.com/go-acme/lego/v4/cmd"
-	"github.com/go-acme/lego/v4/lego"
+	"github.com/mholt/acmez"
+	"github.com/mholt/acmez/acme"
 
 	"github.com/letsencrypt/crl-monitor/db"
 )
 
 type Churner struct {
-	baseDomain string
-	legoClient *lego.Client
-	db         *db.Database
+	baseDomain  string
+	acmeClient  acmez.Client
+	acmeAccount acme.Account
+	db          *db.Database
 }
 
 func New(baseDomain string) (*Churner, error) {
-	// TODO: persistent acme client setup
-	legoCfg := lego.NewConfig(&cmd.Account{})
-
-	client, err := lego.NewClient(legoCfg)
-	if err != nil {
-		return nil, err
+	client := acmez.Client{
+		Client: &acme.Client{
+			Directory:    "",
+			HTTPClient:   nil,
+			UserAgent:    "",
+			PollInterval: 0,
+			PollTimeout:  0,
+			Logger:       nil,
+		},
+		// TODO: need a route53 dns solver here
+		ChallengeSolvers: nil,
 	}
 
 	awsCfg, err := config.LoadDefaultConfig(context.Background())
@@ -36,35 +45,47 @@ func New(baseDomain string) (*Churner, error) {
 
 	return &Churner{
 		baseDomain: baseDomain,
-		legoClient: client,
-		db:         db.New(awsCfg),
+		acmeClient: client,
+		acmeAccount: acme.Account{
+			TermsOfServiceAgreed: true,
+			PrivateKey:           nil, // TODO
+		},
+		db: db.New(awsCfg),
 	}, nil
 }
 
 // Churn issues a certificate, revokes it, and stores the result in DynamoDB
 func (c *Churner) Churn(ctx context.Context) error {
-	resource, err := c.legoClient.Certificate.Obtain(certificate.ObtainRequest{
-		Domains: []string{c.RandDomain()},
-	})
+
+	// Generate either an ecdsa or rsa private key
+	certPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return err
 	}
 
-	var reason uint = 5
-	err = c.legoClient.Certificate.RevokeWithReason(resource.Certificate, &reason)
+	certificates, err := c.acmeClient.ObtainCertificate(ctx, c.acmeAccount, certPrivateKey, c.RandDomains())
 	if err != nil {
 		return err
 	}
 
-	certs, err := certcrypto.ParsePEMBundle(resource.Certificate)
+	// certificates contains all the possible cert chains.  We only care about
+	// the cert, so we just take the first one and parse it.
+	firstChain := certificates[0].ChainPEM
+	block, _ := pem.Decode(firstChain)
+	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
 		return err
 	}
 
-	return c.db.AddCert(ctx, certs[0], time.Now())
+	err = c.acmeClient.RevokeCertificate(ctx, c.acmeAccount, cert, c.acmeAccount.PrivateKey, acme.ReasonCessationOfOperation)
+	if err != nil {
+		return err
+	}
+
+	return c.db.AddCert(ctx, cert, time.Now())
 }
 
-func (c *Churner) RandDomain() string {
+func (c *Churner) RandDomains() []string {
 	// TODO
-	return "4byfairdiceroll." + c.baseDomain
+	return []string{"4byfairdiceroll." + c.baseDomain}
 }

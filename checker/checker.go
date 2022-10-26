@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
+	"log"
 	"math/big"
 	"sort"
 	"time"
@@ -125,6 +126,8 @@ func (c *Checker) Check(ctx context.Context, bucket, object string) error {
 		return fmt.Errorf("error parsing previous crl: %v", err)
 	}
 
+	log.Printf("loaded CRL %d (len %d) and previous %d (len %d)", crl.Number, len(crl.RevokedCertificates), prev.Number, len(crl.RevokedCertificates))
+
 	err = CRLLint(crl)
 	if err != nil {
 		return fmt.Errorf("crl failed linting: %v", err)
@@ -144,7 +147,7 @@ func (c *Checker) lookForEarlyRemoval(crl *x509.RevocationList, prev *x509.Revoc
 		return err
 	}
 
-	fmt.Printf("Looking for early renewal on %d serials\n", len(diff))
+	log.Printf("checking for early CRL removal on %d serials\n", len(diff))
 
 	for _, removed := range diff {
 		notAfter := fetchNotAfter(removed)
