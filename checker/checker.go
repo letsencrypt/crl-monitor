@@ -9,6 +9,7 @@ import (
 
 	"github.com/letsencrypt/boulder/crl/checker"
 	"github.com/letsencrypt/boulder/crl/crl_x509"
+	"github.com/letsencrypt/boulder/issuance"
 	"github.com/letsencrypt/crl-monitor/db"
 	"github.com/letsencrypt/crl-monitor/storage"
 )
@@ -27,7 +28,7 @@ func fetchNotAfter(serial *big.Int) time.Time {
 	return time.Now().Add(-24 * time.Hour) // TODO: everything expired in the past!
 }
 
-func (c *Checker) Check(ctx context.Context, bucket, object string) error {
+func (c *Checker) Check(ctx context.Context, issuer *issuance.Certificate, bucket, object string) error {
 	// Read the current CRL shard
 	crlDER, version, err := c.storage.Fetch(ctx, bucket, object, nil)
 	if err != nil {
@@ -56,12 +57,12 @@ func (c *Checker) Check(ctx context.Context, bucket, object string) error {
 
 	log.Printf("loaded CRL %d (len %d) and previous %d (len %d)", crl.Number, len(crl.RevokedCertificates), prev.Number, len(crl.RevokedCertificates))
 
-	//var issuer *issuance.Certificate // TODO
-	//ageLimit := 24 * time.Hour
-	//err = checker.Validate(crl, issuer, ageLimit)
-	//if err != nil {
-	//	return fmt.Errorf("crl failed linting: %v", err)
-	//}
+	ageLimit := 24 * time.Hour
+	err = checker.Validate(crl, issuer, ageLimit)
+	if err != nil {
+		return fmt.Errorf("crl failed linting: %v", err)
+	}
+	log.Printf("crl %d successfully linted", crl.Number)
 
 	err = c.lookForEarlyRemoval(prev, crl)
 	if err != nil {
