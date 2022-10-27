@@ -64,7 +64,7 @@ func (c *Checker) Check(ctx context.Context, issuer *issuance.Certificate, bucke
 	}
 	log.Printf("crl %d successfully linted", crl.Number)
 
-	err = c.lookForEarlyRemoval(prev, crl)
+	err = lookForEarlyRemoval(prev, crl)
 	if err != nil {
 		return err
 	}
@@ -72,7 +72,7 @@ func (c *Checker) Check(ctx context.Context, issuer *issuance.Certificate, bucke
 	return c.lookForSeenCerts(ctx, crl)
 }
 
-func (c *Checker) lookForEarlyRemoval(prev *crl_x509.RevocationList, crl *crl_x509.RevocationList) error {
+func lookForEarlyRemoval(prev *crl_x509.RevocationList, crl *crl_x509.RevocationList) error {
 	diff, err := checker.Diff(prev, crl)
 	if err != nil {
 		return err
