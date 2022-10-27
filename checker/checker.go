@@ -2,9 +2,13 @@ package checker
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+	"io"
 	"log"
 	"math/big"
+	"net/http"
 	"time"
 
 	"github.com/letsencrypt/boulder/crl/checker"
@@ -15,17 +19,58 @@ import (
 )
 
 func New(database *db.Database, storage *storage.Storage) Checker {
-	return Checker{db: database, storage: storage}
+	// TODO: parameterize this
+	baseURL := "https://acme-v02.api.letsencrypt.org/acme/cert/"
+	fetcher := boulderAPIFetcher{baseURL: baseURL}
+	return Checker{db: database, storage: storage, fetcher: &fetcher}
 }
 
 type Checker struct {
 	db      *db.Database
 	storage *storage.Storage
+	fetcher ExpFetcher
 }
 
-func fetchNotAfter(serial *big.Int) time.Time {
-	log.Printf("TODO: fetch cert with serial %s", serial)
-	return time.Now().Add(-24 * time.Hour) // TODO: everything expired in the past!
+type ExpFetcher interface {
+	FetchNotAfter(ctx context.Context, serial *big.Int) (time.Time, error)
+}
+
+type boulderAPIFetcher struct {
+	baseURL string
+}
+
+func (baf *boulderAPIFetcher) FetchNotAfter(ctx context.Context, serial *big.Int) (time.Time, error) {
+	// boulder implements non-acme-standard support for unauthenticated GETs of certificates
+	url := fmt.Sprintf("%s/%x", baf.baseURL, serial)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	log.Printf("fetching serial for %d", serial)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return time.Time{}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return time.Time{}, fmt.Errorf("error fetching certificate with serial %d: http status %d", serial, resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	block, _ := pem.Decode(body)
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return cert.NotAfter, nil
 }
 
 func (c *Checker) Check(ctx context.Context, issuer *issuance.Certificate, bucket, object string) error {
@@ -60,11 +105,12 @@ func (c *Checker) Check(ctx context.Context, issuer *issuance.Certificate, bucke
 	ageLimit := 24 * time.Hour
 	err = checker.Validate(crl, issuer, ageLimit)
 	if err != nil {
-		return fmt.Errorf("crl failed linting: %v", err)
+		log.Printf("crl failed linting: %v", err)
+		// TODO return fmt.Errorf
 	}
 	log.Printf("crl %d successfully linted", crl.Number)
 
-	err = lookForEarlyRemoval(prev, crl)
+	err = lookForEarlyRemoval(ctx, c.fetcher, prev, crl)
 	if err != nil {
 		return err
 	}
@@ -72,7 +118,7 @@ func (c *Checker) Check(ctx context.Context, issuer *issuance.Certificate, bucke
 	return c.lookForSeenCerts(ctx, crl)
 }
 
-func lookForEarlyRemoval(prev *crl_x509.RevocationList, crl *crl_x509.RevocationList) error {
+func lookForEarlyRemoval(ctx context.Context, fetcher ExpFetcher, prev *crl_x509.RevocationList, crl *crl_x509.RevocationList) error {
 	diff, err := checker.Diff(prev, crl)
 	if err != nil {
 		return err
@@ -81,7 +127,10 @@ func lookForEarlyRemoval(prev *crl_x509.RevocationList, crl *crl_x509.Revocation
 	log.Printf("checking for early CRL removal on %d serials\n", len(diff.Removed))
 
 	for _, removed := range diff.Removed {
-		notAfter := fetchNotAfter(removed)
+		notAfter, err := fetcher.FetchNotAfter(ctx, removed)
+		if err != nil {
+			return err
+		}
 
 		if prev.ThisUpdate.Before(notAfter) {
 			// This certificate expired after the previous CRL was issued
