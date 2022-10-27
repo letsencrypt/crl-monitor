@@ -25,11 +25,11 @@ type Database struct {
 	Dynamo ddb
 }
 
-func New(cfg aws.Config) *Database {
+func New(cfg *aws.Config) (*Database, error) {
 	return &Database{
 		Table:  "unseen-certificates",
-		Dynamo: dynamodb.NewFromConfig(cfg),
-	}
+		Dynamo: dynamodb.NewFromConfig(*cfg),
+	}, nil
 }
 
 // CertMetadata is the entire set of attributes stored in Dynamo.
