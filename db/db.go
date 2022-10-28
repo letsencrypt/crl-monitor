@@ -36,6 +36,7 @@ func New(cfg *aws.Config) (*Database, error) {
 // That is the CertKey plus the revocation time today.
 type CertMetadata struct {
 	CertKey
+	NotAfter       time.Time `dynamodbav:"NA,unixtime"`
 	RevocationTime time.Time `dynamodbav:"RT,unixtime"`
 }
 
@@ -58,6 +59,7 @@ func (ck CertKey) SerialString() string {
 func (db *Database) AddCert(ctx context.Context, certificate *x509.Certificate, revocationTime time.Time) error {
 	item, err := attributevalue.MarshalMap(CertMetadata{
 		CertKey:        NewCertKey(certificate.SerialNumber),
+		NotAfter:       certificate.NotAfter,
 		RevocationTime: revocationTime,
 	})
 	if err != nil {
@@ -103,8 +105,7 @@ func (db *Database) GetAllCerts(ctx context.Context) (map[string]CertMetadata, e
 	return certs, nil
 }
 
-// DeleteSerials takes a list of serials that we've seen in the CRL and thus
-// no longer need to keep an eye out for.
+// DeleteSerials takes a list of serials to delete from monitoring
 func (db *Database) DeleteSerials(ctx context.Context, serialNumbers [][]byte) error {
 	var deletes []types.WriteRequest
 	for _, serial := range serialNumbers {

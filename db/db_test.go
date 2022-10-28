@@ -26,6 +26,7 @@ func smoketest(t *testing.T, handle *db.Database) {
 
 	ts1 := time.Now()
 	ts2 := time.Now().Add(100 * time.Hour)
+	ts3 := time.Now().Add(250 * time.Hour)
 
 	int111 := big.NewInt(111)
 	int4s := big.NewInt(444444)
@@ -33,23 +34,24 @@ func smoketest(t *testing.T, handle *db.Database) {
 	int123 := big.NewInt(123456)
 
 	// Insert 4 entries into the database with different serials and revocation times
-	require.NoError(t, handle.AddCert(ctx, &x509.Certificate{SerialNumber: int111}, ts1))
-	require.NoError(t, handle.AddCert(ctx, &x509.Certificate{SerialNumber: int4s}, ts1))
-	require.NoError(t, handle.AddCert(ctx, &x509.Certificate{SerialNumber: int60s}, ts2))
-	require.NoError(t, handle.AddCert(ctx, &x509.Certificate{SerialNumber: int123}, ts2))
+	require.NoError(t, handle.AddCert(ctx, &x509.Certificate{SerialNumber: int111, NotAfter: ts3}, ts1))
+	require.NoError(t, handle.AddCert(ctx, &x509.Certificate{SerialNumber: int4s, NotAfter: ts2}, ts1))
+	require.NoError(t, handle.AddCert(ctx, &x509.Certificate{SerialNumber: int60s, NotAfter: ts3}, ts2))
+	require.NoError(t, handle.AddCert(ctx, &x509.Certificate{SerialNumber: int123, NotAfter: ts1}, ts2))
 
 	// Timestamps stored in Dynamo as unix timestamps are truncated to second precision
 	ts1 = ts1.Truncate(time.Second)
 	ts2 = ts2.Truncate(time.Second)
+	ts3 = ts3.Truncate(time.Second)
 
 	certs, err := handle.GetAllCerts(ctx)
 	require.NoError(t, err)
 	require.Len(t, certs, 4)
 	require.Equal(t, certs, map[string]db.CertMetadata{
-		"00000000000000000000000000000000006f": {CertKey: db.CertKey{SerialNumber: int111.Bytes()}, RevocationTime: ts1},
-		"00000000000000000000000000000006c81c": {CertKey: db.CertKey{SerialNumber: int4s.Bytes()}, RevocationTime: ts1},
-		"000000000000000000000000000000093f6c": {CertKey: db.CertKey{SerialNumber: int60s.Bytes()}, RevocationTime: ts2},
-		"00000000000000000000000000000001e240": {CertKey: db.CertKey{SerialNumber: int123.Bytes()}, RevocationTime: ts2},
+		"00000000000000000000000000000000006f": {CertKey: db.CertKey{SerialNumber: int111.Bytes()}, NotAfter: ts3, RevocationTime: ts1},
+		"00000000000000000000000000000006c81c": {CertKey: db.CertKey{SerialNumber: int4s.Bytes()}, NotAfter: ts2, RevocationTime: ts1},
+		"000000000000000000000000000000093f6c": {CertKey: db.CertKey{SerialNumber: int60s.Bytes()}, NotAfter: ts3, RevocationTime: ts2},
+		"00000000000000000000000000000001e240": {CertKey: db.CertKey{SerialNumber: int123.Bytes()}, NotAfter: ts1, RevocationTime: ts2},
 	})
 
 	// Delete all the serials other than the 606060 serial
@@ -65,7 +67,7 @@ func smoketest(t *testing.T, handle *db.Database) {
 	remaining, err := handle.GetAllCerts(ctx)
 	require.NoError(t, err)
 	expected := map[string]db.CertMetadata{
-		"000000000000000000000000000000093f6c": {CertKey: db.CertKey{SerialNumber: int60s.Bytes()}, RevocationTime: ts2},
+		"000000000000000000000000000000093f6c": {CertKey: db.CertKey{SerialNumber: int60s.Bytes()}, NotAfter: ts3, RevocationTime: ts2},
 	}
 	require.Equal(t, expected, remaining)
 }
