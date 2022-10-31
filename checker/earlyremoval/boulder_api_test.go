@@ -15,7 +15,7 @@ import (
 // This test hits the real boulder staging API!
 // It is behind the integration flag as a result.
 func TestBoulderStagingAPI(t *testing.T) {
-	baseURL := "https://acme-staging-v02.api.letsencrypt.org/acme/cert"
+	baseURL := "https://acme-staging-v02.api.letsencrypt.org/get/cert"
 	baf := BoulderAPIFetcher{Client: http.DefaultClient, BaseURL: baseURL}
 
 	// TODO:  This is a hardcoded serial and expiry combo.
@@ -29,7 +29,7 @@ func TestBoulderStagingAPI(t *testing.T) {
 }
 
 func TestBoulderProductionAPI(t *testing.T) {
-	baseURL := "https://acme-v02.api.letsencrypt.org/acme/cert"
+	baseURL := "https://acme-v02.api.letsencrypt.org/get/cert"
 	baf := BoulderAPIFetcher{Client: http.DefaultClient, BaseURL: baseURL}
 
 	// TODO:  This is a hardcoded serial and expiry combo.

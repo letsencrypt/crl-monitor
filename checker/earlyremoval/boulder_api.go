@@ -19,7 +19,6 @@ type BoulderAPIFetcher struct {
 
 func (baf *BoulderAPIFetcher) FetchNotAfter(ctx context.Context, serial *big.Int) (time.Time, error) {
 	// boulder implements non-acme-standard support for unauthenticated GETs of certificates
-	// TODO: ohno, this doesn't work in staging!  I should sent a signed JWS request instead.
 	url := fmt.Sprintf("%s/%036x", baf.BaseURL, serial)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
