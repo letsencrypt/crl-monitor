@@ -12,10 +12,6 @@ import (
 	"time"
 )
 
-type Fetcher interface {
-	FetchNotAfter(ctx context.Context, serial *big.Int) (time.Time, error)
-}
-
 type BoulderAPIFetcher struct {
 	Client  *http.Client
 	BaseURL string
