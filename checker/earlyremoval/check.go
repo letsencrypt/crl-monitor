@@ -21,7 +21,7 @@ func Check(ctx context.Context, fetcher Fetcher, prev *crl_x509.RevocationList, 
 		return err
 	}
 
-	log.Printf("checking for early CRL removal on %d serials\n", len(diff.Removed))
+	log.Printf("checking for early CRL removal on %d serials", len(diff.Removed))
 
 	for _, removed := range diff.Removed {
 		notAfter, err := fetcher.FetchNotAfter(ctx, removed)

@@ -17,6 +17,9 @@ type BoulderAPIFetcher struct {
 	BaseURL string
 }
 
+// FetchNotAfter downloads a certificate, parses it, and returns the NotAfter on
+// it. It uses a non-acme path to download a certificate unauthenticated by
+// serial. So it is specific to Boulder's API, not a generic ACME API client.
 func (baf *BoulderAPIFetcher) FetchNotAfter(ctx context.Context, serial *big.Int) (time.Time, error) {
 	// boulder implements non-acme-standard support for unauthenticated GETs of certificates
 	url := fmt.Sprintf("%s/%036x", baf.BaseURL, serial)
