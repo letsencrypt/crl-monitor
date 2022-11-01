@@ -1,4 +1,4 @@
-package earlyremoval
+package expiry
 
 import (
 	"context"
@@ -11,6 +11,10 @@ import (
 	"net/http"
 	"time"
 )
+
+type Fetcher interface {
+	FetchNotAfter(ctx context.Context, serial *big.Int) (time.Time, error)
+}
 
 type BoulderAPIFetcher struct {
 	Client  *http.Client

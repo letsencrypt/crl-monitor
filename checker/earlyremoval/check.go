@@ -4,18 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"math/big"
-	"time"
 
 	"github.com/letsencrypt/boulder/crl/checker"
 	"github.com/letsencrypt/boulder/crl/crl_x509"
+	"github.com/letsencrypt/crl-monitor/checker/expiry"
 )
 
-type ExpFetcher interface {
-	FetchNotAfter(ctx context.Context, serial *big.Int) (time.Time, error)
-}
-
-func Check(ctx context.Context, fetcher ExpFetcher, prev *crl_x509.RevocationList, crl *crl_x509.RevocationList) error {
+func Check(ctx context.Context, fetcher expiry.Fetcher, prev *crl_x509.RevocationList, crl *crl_x509.RevocationList) error {
 	diff, err := checker.Diff(prev, crl)
 	if err != nil {
 		return err

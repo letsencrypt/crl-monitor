@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/letsencrypt/crl-monitor/checker/expiry"
 )
 
 const testCert = `
@@ -46,13 +48,14 @@ TJ/g1eaQHpI2ZqtZeD/yH6+iZtWtYF+WBDlw+gRzGBkFTy+gR7bs1XVVcfhC1BkF
 
 func TestBoulderAPIFetcher(t *testing.T) {
 	serialhex := "04bc17a64a2c415af9ba4df32b73bf4e08e7"
+	somePrefix := "/get/some/path/cert"
 
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		require.Equal(t, "/acme/cert/"+serialhex, req.URL.Path)
+		require.Equal(t, somePrefix+"/"+serialhex, req.URL.Path)
 		res.Write([]byte(testCert))
 	}))
 
-	fetcher := BoulderAPIFetcher{BaseURL: testServer.URL + "/acme/cert", Client: http.DefaultClient}
+	fetcher := expiry.BoulderAPIFetcher{BaseURL: testServer.URL + somePrefix, Client: http.DefaultClient}
 
 	serial := new(big.Int)
 	serial.SetString(serialhex, 16)

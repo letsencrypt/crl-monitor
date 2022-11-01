@@ -1,6 +1,6 @@
 //go:build integration
 
-package earlyremoval
+package expiry
 
 import (
 	"context"
