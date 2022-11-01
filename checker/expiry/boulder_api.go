@@ -31,7 +31,7 @@ func (baf *BoulderAPIFetcher) FetchNotAfter(ctx context.Context, serial *big.Int
 	req.Header.Set("User-Agent", "CRL-Monitor/0.1")
 
 	log.Printf("fetching serial from %s", url)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := baf.Client.Do(req)
 	if err != nil {
 		return time.Time{}, err
 	}
