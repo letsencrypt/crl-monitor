@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// This test hits the real boulder staging API!
+// This test hits the live staging and production Let's Encrypt API!
 // It is behind the integration flag as a result.
 func TestBoulderAPI(t *testing.T) {
 	// TODO: These integration tests hardcode certificates that we fetch from Boulder's API

@@ -32,7 +32,7 @@ func Check(ctx context.Context, fetcher Fetcher, prev *crl_x509.RevocationList, 
 		if prev.ThisUpdate.Before(notAfter) {
 			// This certificate expired after the previous CRL was issued
 			// All removed CRLs should have been expired in the previous CRL
-			return fmt.Errorf("early removal of %v from crl %v: previous CRL at %v is before cert notAfter %v",
+			return fmt.Errorf("early removal of %d from crl %d: previous CRL at %s is before cert notAfter %s",
 				removed, prev.Number, prev.ThisUpdate, notAfter)
 		}
 	}

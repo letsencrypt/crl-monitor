@@ -6,7 +6,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"log"
 	"math/big"
 	"net/http"
 	"time"
@@ -21,7 +20,7 @@ type BoulderAPIFetcher struct {
 // it. It uses a non-acme path to download a certificate unauthenticated by
 // serial. So it is specific to Boulder's API, not a generic ACME API client.
 func (baf *BoulderAPIFetcher) FetchNotAfter(ctx context.Context, serial *big.Int) (time.Time, error) {
-	// boulder implements non-acme-standard support for unauthenticated GETs of certificates
+	// The baseURL is followed by a hex-encoded serial
 	url := fmt.Sprintf("%s/%036x", baf.BaseURL, serial)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -30,7 +29,6 @@ func (baf *BoulderAPIFetcher) FetchNotAfter(ctx context.Context, serial *big.Int
 	}
 	req.Header.Set("User-Agent", "CRL-Monitor/0.1")
 
-	log.Printf("fetching serial from %s", url)
 	resp, err := baf.Client.Do(req)
 	if err != nil {
 		return time.Time{}, err
