@@ -19,7 +19,8 @@ func TestCheck(t *testing.T) {
 	// Cert 1 expires between crl 1 and 2
 	mockFetcher.AddTestData(big.NewInt(1), now.Add(30*time.Minute))
 	// Cert 2 expires between crl 3 and 4
-	mockFetcher.AddTestData(big.NewInt(2), now.Add(3*time.Hour+30*time.Minute))
+	cert2expiry := now.Add(3*time.Hour + 30*time.Minute)
+	mockFetcher.AddTestData(big.NewInt(2), cert2expiry)
 
 	// We have a series of CRLs for testing, starting with 3 serials
 	crl1 := crl_x509.RevocationList{
@@ -70,15 +71,25 @@ func TestCheck(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		name string
-		prev *crl_x509.RevocationList
-		crl  *crl_x509.RevocationList
+		name     string
+		prev     *crl_x509.RevocationList
+		crl      *crl_x509.RevocationList
+		expected []EarlyRemoval
 	}{
 		{name: "no removals", prev: &crl1, crl: &crl2},
 		{name: "remove 1", prev: &crl2, crl: &crl3},
+		{
+			name: "early removal",
+			prev: &crl3,
+			crl:  &crl4,
+			expected: []EarlyRemoval{
+				{Serial: big.NewInt(2), NotAfter: cert2expiry},
+			}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			require.NoError(t, Check(context.Background(), &mockFetcher, tt.prev, tt.crl))
+			early, err := Check(context.Background(), &mockFetcher, tt.prev, tt.crl)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, early)
 		})
 	}
 
@@ -87,13 +98,13 @@ func TestCheck(t *testing.T) {
 		prev          *crl_x509.RevocationList
 		crl           *crl_x509.RevocationList
 	}{
-		{expectedError: "early removal", prev: &crl3, crl: &crl4},
 		{expectedError: "unknown serial 3", prev: &crl4, crl: &crl5},
 		{expectedError: "old CRL does not precede new CRL", prev: &crl2, crl: &crl1},
 	} {
 		t.Run(tt.expectedError, func(t *testing.T) {
-			err := Check(context.Background(), &mockFetcher, tt.prev, tt.crl)
+			early, err := Check(context.Background(), &mockFetcher, tt.prev, tt.crl)
 			require.ErrorContains(t, err, tt.expectedError)
+			require.Nil(t, early)
 		})
 	}
 }
