@@ -111,7 +111,14 @@ func TestBoulderAPIFetcher(t *testing.T) {
 	serialhex := "04bc17a64a2c415af9ba4df32b73bf4e08e7"
 	somePrefix := "/get/some/path/cert"
 
+	flaked := false
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		// Make sure we can handle intermittent errors
+		if !flaked {
+			flaked = true
+			res.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
 		require.Equal(t, somePrefix+"/"+serialhex, req.URL.Path)
 		res.Write([]byte(testCert))
 	}))
