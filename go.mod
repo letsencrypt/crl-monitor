@@ -9,6 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.17.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.27.11
 	github.com/letsencrypt/boulder v0.0.0-20221026224552-9213bd099359
+	github.com/mholt/acmez v1.0.4
 	github.com/stretchr/testify v1.8.0
 )
 
@@ -55,6 +56,9 @@ require (
 	github.com/weppos/publicsuffix-go v0.20.1-0.20221016123633-0ad56ba8bf2e // indirect
 	github.com/zmap/zcrypto v0.0.0-20220402174210-599ec18ecbac // indirect
 	github.com/zmap/zlint/v3 v3.4.0 // indirect
+	go.uber.org/atomic v1.7.0 // indirect
+	go.uber.org/multierr v1.6.0 // indirect
+	go.uber.org/zap v1.21.0 // indirect
 	golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d // indirect
 	golang.org/x/net v0.0.0-20220926192436-02166a98028e // indirect
 	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
