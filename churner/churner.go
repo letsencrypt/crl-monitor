@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"time"
 
 	"github.com/mholt/acmez"
@@ -33,7 +34,6 @@ func New(baseDomain string, acmeClient acmez.Client, acmeAccount acme.Account, d
 
 // Churn issues a certificate, revokes it, and stores the result in DynamoDB
 func (c *Churner) Churn(ctx context.Context) error {
-
 	// Generate either an ecdsa or rsa private key
 	certPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -62,7 +62,15 @@ func (c *Churner) Churn(ctx context.Context) error {
 	return c.db.AddCert(ctx, cert, time.Now())
 }
 
+// RandDomains picks the domains to include on the certificate.
+// We put a single domain which includes the current time and a random value.
 func (c *Churner) RandDomains() []string {
-	// TODO
-	return []string{"4byfairdiceroll." + c.baseDomain}
+	randomSuffix := make([]byte, 2)
+	_, err := rand.Read(randomSuffix)
+	if err != nil {
+		// Something has to go terribly wrong for this
+		panic(fmt.Sprintf("random read failed: %v", err))
+	}
+	domain := fmt.Sprintf("r%dz%x.%s", time.Now().Unix(), randomSuffix, c.baseDomain)
+	return []string{domain}
 }
