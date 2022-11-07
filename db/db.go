@@ -25,9 +25,9 @@ type Database struct {
 	Dynamo ddb
 }
 
-func New(cfg *aws.Config) (*Database, error) {
+func New(table string, cfg *aws.Config) (*Database, error) {
 	return &Database{
-		Table:  "unseen-certificates",
+		Table:  table,
 		Dynamo: dynamodb.NewFromConfig(*cfg),
 	}, nil
 }

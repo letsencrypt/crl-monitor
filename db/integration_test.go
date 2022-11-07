@@ -57,7 +57,7 @@ func TestIntegrationDynamoDB(t *testing.T) {
 	cfg.Credentials = aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
 		return aws.Credentials{AccessKeyID: "Bogus", SecretAccessKey: "Bogus"}, nil
 	})
-	handle, err := db.New(cfg)
+	handle, err := db.New("unseen-certificates", cfg)
 	require.NoError(t, err)
 
 	makeTable(t, handle)
