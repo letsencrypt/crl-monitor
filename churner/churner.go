@@ -10,8 +10,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/caddyserver/certmagic"
 	"github.com/mholt/acmez"
 	"github.com/mholt/acmez/acme"
+	"go.uber.org/zap"
 
 	"github.com/letsencrypt/crl-monitor/db"
 )
@@ -23,13 +25,44 @@ type Churner struct {
 	db          *db.Database
 }
 
-func New(baseDomain string, acmeClient acmez.Client, acmeAccount acme.Account, db *db.Database) (*Churner, error) {
+func New(baseDomain string, acmeDirectory string, dnsProvider certmagic.ACMEDNSProvider, db *db.Database) (*Churner, error) {
+	zapLogger, err := zap.NewDevelopment()
+	if err != nil {
+		return nil, err
+	}
+
+	acmeClient := acmez.Client{
+		Client: &acme.Client{
+			Directory: acmeDirectory,
+			Logger:    zapLogger,
+		},
+		ChallengeSolvers: map[string]acmez.Solver{
+			acme.ChallengeTypeDNS01: &certmagic.DNS01Solver{DNSProvider: dnsProvider},
+		},
+	}
+
 	return &Churner{
-		baseDomain:  baseDomain,
-		acmeClient:  acmeClient,
-		acmeAccount: acmeAccount,
-		db:          db,
+		baseDomain: baseDomain,
+		acmeClient: acmeClient,
+		db:         db,
 	}, nil
+}
+
+// RegisterAccount sets up a new account.
+// TODO: Store accounts to reuse.  For now we just make a new one each time.
+func (c *Churner) RegisterAccount(ctx context.Context) error {
+	accountKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return fmt.Errorf("error generating account key: %v", err)
+	}
+
+	account, err := c.acmeClient.NewAccount(ctx, acme.Account{PrivateKey: accountKey, TermsOfServiceAgreed: true})
+	if err != nil {
+		return fmt.Errorf("error creating ACME account: %v", err)
+	}
+
+	c.acmeAccount = account
+	return nil
 }
 
 // Churn issues a certificate, revokes it, and stores the result in DynamoDB
