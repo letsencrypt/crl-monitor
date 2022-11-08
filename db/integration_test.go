@@ -1,10 +1,9 @@
-//go:build integration
+///go:build integration
 
 package db_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -14,16 +13,6 @@ import (
 
 	"github.com/letsencrypt/crl-monitor/db"
 )
-
-func localResolver(service, region string, opts ...interface{}) (aws.Endpoint, error) {
-	if service != dynamodb.ServiceID {
-		return aws.Endpoint{}, fmt.Errorf("unsupported service %s", service)
-	}
-	return aws.Endpoint{
-		PartitionID: "aws",
-		URL:         "http://localhost:8000/",
-	}, nil
-}
 
 // makeTable sets up the table in the integration test DB.
 // In the real Dynamo, we provision the table with Terraform
@@ -53,7 +42,7 @@ func makeTable(t *testing.T, handle *db.Database) {
 // run most tests outside the db package.
 func TestIntegrationDynamoDB(t *testing.T) {
 	cfg := aws.NewConfig()
-	cfg.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(localResolver)
+	cfg.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(db.StaticResolver("http://localhost:8000"))
 	cfg.Credentials = aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
 		return aws.Credentials{AccessKeyID: "Bogus", SecretAccessKey: "Bogus"}, nil
 	})
