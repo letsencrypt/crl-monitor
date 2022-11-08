@@ -19,4 +19,6 @@ trap 'kill $dynamopid' EXIT
 
 sleep 1 # Let dynamodb start
 
+./create_table.sh
+
 go test -tags integration .
