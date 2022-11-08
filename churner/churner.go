@@ -26,7 +26,7 @@ type Churner struct {
 }
 
 func New(baseDomain string, acmeDirectory string, dnsProvider certmagic.ACMEDNSProvider, db *db.Database) (*Churner, error) {
-	zapLogger, err := zap.NewDevelopment()
+	zapLogger, err := zap.NewProduction()
 	if err != nil {
 		return nil, err
 	}
