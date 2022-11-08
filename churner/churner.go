@@ -18,6 +18,9 @@ import (
 	"github.com/letsencrypt/crl-monitor/db"
 )
 
+// The Churner creats and immediately revokes certificates. Certificates are
+// issued using the configured ACME client using DNS01 challenges under the
+// configured baseDomain. Serials and revocation time are stored in the db.
 type Churner struct {
 	baseDomain  string
 	acmeClient  acmez.Client
@@ -25,6 +28,10 @@ type Churner struct {
 	db          *db.Database
 }
 
+// New returns a Churner with an ACME client configured.
+// `baseDomain` should be a domain name that the `dnsProvider` can create/delete
+// records for. The certs will be issued from the CA at `acmeDirectory`.
+// The resulting serials are stored into `db`
 func New(baseDomain string, acmeDirectory string, dnsProvider certmagic.ACMEDNSProvider, db *db.Database) (*Churner, error) {
 	zapLogger, err := zap.NewProduction()
 	if err != nil {
