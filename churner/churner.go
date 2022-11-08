@@ -37,7 +37,10 @@ func New(baseDomain string, acmeDirectory string, dnsProvider certmagic.ACMEDNSP
 			Logger:    zapLogger,
 		},
 		ChallengeSolvers: map[string]acmez.Solver{
-			acme.ChallengeTypeDNS01: &certmagic.DNS01Solver{DNSProvider: dnsProvider},
+			acme.ChallengeTypeDNS01: &certmagic.DNS01Solver{
+				DNSProvider:      dnsProvider,
+				PropagationDelay: 60 * time.Second, // Route53 docs say 60 seconds in normal conditions
+			},
 		},
 	}
 
