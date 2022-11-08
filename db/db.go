@@ -25,11 +25,11 @@ type Database struct {
 	Dynamo ddb
 }
 
-func New(cfg aws.Config) *Database {
+func New(table string, cfg *aws.Config) (*Database, error) {
 	return &Database{
-		Table:  "unseen-certificates",
-		Dynamo: dynamodb.NewFromConfig(cfg),
-	}
+		Table:  table,
+		Dynamo: dynamodb.NewFromConfig(*cfg),
+	}, nil
 }
 
 // CertMetadata is the entire set of attributes stored in Dynamo.
@@ -126,4 +126,17 @@ func (db *Database) DeleteSerials(ctx context.Context, serialNumbers [][]byte) e
 		return err
 	}
 	return nil
+}
+
+// StaticResolver is used in test and dev to use the local dynamodb
+func StaticResolver(url string) func(service, region string, opts ...interface{}) (aws.Endpoint, error) {
+	return func(service, region string, opts ...interface{}) (aws.Endpoint, error) {
+		if service != dynamodb.ServiceID {
+			return aws.Endpoint{}, fmt.Errorf("unsupported service %s", service)
+		}
+		return aws.Endpoint{
+			PartitionID: "aws",
+			URL:         url,
+		}, nil
+	}
 }

@@ -13,10 +13,12 @@ else
   echo "using existing DynamoDBLocal.jar"
 fi
 
-java -Djava.library.path=./dynamodb_local/DynamoDBLocal_lib -jar ./dynamodb_local/DynamoDBLocal.jar -inMemory &
+java -Djava.library.path=./dynamodb_local/DynamoDBLocal_lib -jar ./dynamodb_local/DynamoDBLocal.jar -sharedDb -inMemory &
 dynamopid=$!
 trap 'kill $dynamopid' EXIT
 
 sleep 1 # Let dynamodb start
+
+./create_table.sh
 
 go test -tags integration .
