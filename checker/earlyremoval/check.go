@@ -29,7 +29,10 @@ func Check(ctx context.Context, fetcher Fetcher, prev *crl_x509.RevocationList, 
 
 	var earlyRemovals []EarlyRemoval
 
-	for _, removed := range diff.Removed {
+	for i, removed := range diff.Removed {
+		if i%100 == 0 {
+			log.Printf("fetching cert %d/%d", i, len(diff.Removed))
+		}
 		notAfter, err := fetcher.FetchNotAfter(ctx, removed)
 		if err != nil {
 			return nil, err
