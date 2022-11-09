@@ -132,7 +132,7 @@ func (db *Database) DeleteSerials(ctx context.Context, serialNumbers [][]byte) e
 func StaticResolver(url string) func(service, region string, opts ...interface{}) (aws.Endpoint, error) {
 	return func(service, region string, opts ...interface{}) (aws.Endpoint, error) {
 		if service != dynamodb.ServiceID {
-			return aws.Endpoint{}, fmt.Errorf("unsupported service %s", service)
+			return aws.Endpoint{}, &aws.EndpointNotFoundError{}
 		}
 		return aws.Endpoint{
 			PartitionID: "aws",
