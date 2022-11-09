@@ -9,25 +9,39 @@ import (
 	"github.com/letsencrypt/boulder/crl/checker"
 	"github.com/letsencrypt/boulder/crl/crl_x509"
 	"github.com/letsencrypt/boulder/issuance"
+	"github.com/letsencrypt/crl-monitor/checker/earlyremoval"
 	"github.com/letsencrypt/crl-monitor/db"
 	"github.com/letsencrypt/crl-monitor/storage"
 )
 
-func New(database *db.Database, storage *storage.Storage) Checker {
-	return Checker{db: database, storage: storage}
+func New(database *db.Database, storage *storage.Storage, fetcher earlyremoval.Fetcher, ageLimit time.Duration) Checker {
+	return Checker{
+		db:       database,
+		storage:  storage,
+		fetcher:  fetcher,
+		ageLimit: ageLimit,
+	}
 }
 
 type Checker struct {
-	db      *db.Database
-	storage *storage.Storage
+	db       *db.Database
+	storage  *storage.Storage
+	fetcher  earlyremoval.Fetcher
+	ageLimit time.Duration
 }
 
-func (c *Checker) Check(ctx context.Context, issuer *issuance.Certificate, bucket, object string) error {
+func (c *Checker) Check(ctx context.Context, issuer *issuance.Certificate, bucket, object string, startingVersion *string) error {
 	// Read the current CRL shard
-	crlDER, version, err := c.storage.Fetch(ctx, bucket, object, nil)
+	crlDER, version, err := c.storage.Fetch(ctx, bucket, object, startingVersion)
 	if err != nil {
 		return err
 	}
+
+	crl, err := crl_x509.ParseRevocationList(crlDER)
+	if err != nil {
+		return fmt.Errorf("error parsing current crl: %v", err)
+	}
+	log.Printf("loaded CRL number %d (len %d) from %s version %s", crl.Number, len(crl.RevokedCertificates), object, version)
 
 	// And the previous:
 	prevVersion, err := c.storage.Previous(ctx, bucket, object, version)
@@ -40,23 +54,32 @@ func (c *Checker) Check(ctx context.Context, issuer *issuance.Certificate, bucke
 		return err
 	}
 
-	crl, err := crl_x509.ParseRevocationList(crlDER)
-	if err != nil {
-		return fmt.Errorf("error parsing current crl: %v", err)
-	}
 	prev, err := crl_x509.ParseRevocationList(prevDER)
 	if err != nil {
 		return fmt.Errorf("error parsing previous crl: %v", err)
 	}
+	log.Printf("loaded previous CRL number %d (len %d) from version %s", prev.Number, len(prev.RevokedCertificates), prevVersion)
 
-	log.Printf("loaded CRL %d (len %d) and previous %d (len %d)", crl.Number, len(crl.RevokedCertificates), prev.Number, len(crl.RevokedCertificates))
-
-	ageLimit := 24 * time.Hour
-	err = checker.Validate(crl, issuer, ageLimit)
+	err = checker.Validate(crl, issuer, c.ageLimit)
 	if err != nil {
 		return fmt.Errorf("crl failed linting: %v", err)
 	}
 	log.Printf("crl %d successfully linted", crl.Number)
+
+	earlyRemoved, err := earlyremoval.Check(ctx, c.fetcher, prev, crl)
+	if err != nil {
+		return fmt.Errorf("failed to check for early removal: %v", err)
+	}
+
+	if len(earlyRemoved) != 0 {
+		sample := earlyRemoved
+		if len(sample) > 50 {
+			sample = sample[:50]
+		}
+
+		// Certificates removed early!  This is very bad.
+		return fmt.Errorf("early removal of %d certificates detected! First 50: %v", len(earlyRemoved), sample)
+	}
 
 	return c.lookForSeenCerts(ctx, crl)
 }

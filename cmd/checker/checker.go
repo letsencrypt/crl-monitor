@@ -2,24 +2,40 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"log"
-	"testing"
+	"net/http"
+	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 
 	"github.com/letsencrypt/boulder/issuance"
 	"github.com/letsencrypt/crl-monitor/checker"
-	"github.com/letsencrypt/crl-monitor/db/mock"
+	"github.com/letsencrypt/crl-monitor/checker/expiry"
+	"github.com/letsencrypt/crl-monitor/cmd"
+	"github.com/letsencrypt/crl-monitor/db"
 	"github.com/letsencrypt/crl-monitor/storage"
 )
 
-func main() {
-	bucket := flag.String("bucket", "le-crl-stg", "S3 Bucket Name")
-	issuerPath := flag.String("issuer", "int-r3-by-x1.pem", "PEM-formatted CRL issuer certificate")
+const (
+	BoulderBaseURL    cmd.EnvVar = "BOULDER_BASE_URL"
+	DynamoEndpointEnv cmd.EnvVar = "DYNAMO_ENDPOINT"
+	DynamoTableEnv    cmd.EnvVar = "DYNAMO_TABLE"
+	IssuerPath        cmd.EnvVar = "ISSUER_PATH"
+	S3CRLBucket       cmd.EnvVar = "S3_CRL_BUCKET"
+	ShardNumber       cmd.EnvVar = "SHARD_NUMBER"
+	ShardVersion      cmd.EnvVar = "SHARD_VERSION"
+)
 
-	flag.Parse()
+func main() {
+	boulderBaseURL := BoulderBaseURL.MustRead("Boulder endpoint to fetch certificates from")
+	bucket := S3CRLBucket.MustRead("S3 CRL bucket name")
+	issuerPath := IssuerPath.MustRead("Path to PEM-formatted CRL issuer certificate")
+	dynamoTable := DynamoTableEnv.MustRead("DynamoDB table name")
+	dynamoEndpoint, customEndpoint := DynamoEndpointEnv.LookupEnv()
+	shard := ShardNumber.MustRead("CRL Shard number")
+	shardVersion, hasVersion := ShardVersion.LookupEnv()
 
 	ctx := context.Background()
 
@@ -28,24 +44,35 @@ func main() {
 		log.Fatalf("error creating AWS config: %v", err)
 	}
 
-	mockedDB := mock.NewMockedDB(&testing.T{})
-	c := checker.New( /*db.New(cfg)*/ mockedDB, storage.New(cfg))
+	if customEndpoint {
+		cfg.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(db.StaticResolver(dynamoEndpoint))
+	}
 
-	issuer, err := issuance.LoadCertificate(*issuerPath)
+	database, err := db.New(dynamoTable, &cfg)
+	if err != nil {
+		log.Fatalf("error in database setup: %v", err)
+	}
+
+	baf := expiry.BoulderAPIFetcher{
+		Client:  http.DefaultClient,
+		BaseURL: boulderBaseURL,
+	}
+
+	c := checker.New(database, storage.New(cfg), &baf, 24*time.Hour)
+
+	issuer, err := issuance.LoadCertificate(issuerPath)
 	if err != nil {
 		log.Fatalf("error loading issuer certificate: %v", err)
 	}
 
-	success := true
-	for crl := 0; crl < 128; crl++ {
-		log.Printf("checking crl %d", crl)
-		err = c.Check(context.Background(), issuer, *bucket, fmt.Sprintf("%d/%d.crl", issuer.NameID(), crl))
-		if err != nil {
-			log.Printf("error checking CRL %d: %v", crl, err)
-			success = false
-		}
+	// The version is optional.
+	var optionalVersion *string
+	if hasVersion {
+		optionalVersion = &shardVersion
 	}
-	if !success {
-		log.Fatalf("Some CRLs had errors")
+
+	err = c.Check(ctx, issuer, bucket, fmt.Sprintf("%d/%s.crl", issuer.NameID(), shard), optionalVersion)
+	if err != nil {
+		log.Printf("error checking CRL %s: %v", shard, err)
 	}
 }
