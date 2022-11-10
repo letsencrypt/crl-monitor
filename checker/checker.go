@@ -23,6 +23,8 @@ func New(database *db.Database, storage *storage.Storage, fetcher earlyremoval.F
 	}
 }
 
+// The Checker handles fetching and linting CRLs.
+// Use New to obtain one.
 type Checker struct {
 	db       *db.Database
 	storage  *storage.Storage
@@ -30,6 +32,8 @@ type Checker struct {
 	ageLimit time.Duration
 }
 
+// Check fetches a CRL and its previous version.  It runs lints on the CRL, checks for early removal, and removes any
+// certificates we're waiting for out of the database.
 func (c *Checker) Check(ctx context.Context, issuer *issuance.Certificate, bucket, object string, startingVersion *string) error {
 	// Read the current CRL shard
 	crlDER, version, err := c.storage.Fetch(ctx, bucket, object, startingVersion)
@@ -78,12 +82,14 @@ func (c *Checker) Check(ctx context.Context, issuer *issuance.Certificate, bucke
 		}
 
 		// Certificates removed early!  This is very bad.
-		return fmt.Errorf("early removal of %d certificates detected! First 50: %v", len(earlyRemoved), sample)
+		return fmt.Errorf("early removal of %d certificates detected! First %d: %v", len(earlyRemoved), len(sample), sample)
 	}
 
 	return c.lookForSeenCerts(ctx, crl)
 }
 
+// lookForSeenCerts removes any certs in this CRL from the database, as they've now appeared in a CRL.
+// We expect the database to be much smaller than CRLs, so we load the entire database into memory.
 func (c *Checker) lookForSeenCerts(ctx context.Context, crl *crl_x509.RevocationList) error {
 	monitoring, err := c.db.GetAllCerts(ctx)
 	if err != nil {
