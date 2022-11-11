@@ -47,6 +47,12 @@ func (c *Checker) Check(ctx context.Context, issuer *issuance.Certificate, bucke
 	}
 	log.Printf("loaded CRL number %d (len %d) from %s version %s", crl.Number, len(crl.RevokedCertificates), object, version)
 
+	err = checker.Validate(crl, issuer, c.ageLimit)
+	if err != nil {
+		return fmt.Errorf("crl failed linting: %v", err)
+	}
+	log.Printf("crl %d successfully linted", crl.Number)
+
 	// And the previous:
 	prevVersion, err := c.storage.Previous(ctx, bucket, object, version)
 	if err != nil {
@@ -63,12 +69,6 @@ func (c *Checker) Check(ctx context.Context, issuer *issuance.Certificate, bucke
 		return fmt.Errorf("error parsing previous crl: %v", err)
 	}
 	log.Printf("loaded previous CRL number %d (len %d) from version %s", prev.Number, len(prev.RevokedCertificates), prevVersion)
-
-	err = checker.Validate(crl, issuer, c.ageLimit)
-	if err != nil {
-		return fmt.Errorf("crl failed linting: %v", err)
-	}
-	log.Printf("crl %d successfully linted", crl.Number)
 
 	earlyRemoved, err := earlyremoval.Check(ctx, c.fetcher, prev, crl)
 	if err != nil {
