@@ -47,13 +47,11 @@ func (c *Checker) Check(ctx context.Context, issuer *issuance.Certificate, bucke
 	}
 	log.Printf("loaded CRL number %d (len %d) from %s version %s", crl.Number, len(crl.RevokedCertificates), object, version)
 
-
 	err = checker.Validate(crl, issuer, c.ageLimit)
 	if err != nil {
 		return fmt.Errorf("crl failed linting: %v", err)
 	}
 	log.Printf("crl %d successfully linted", crl.Number)
-
 
 	// And the previous:
 	prevVersion, err := c.storage.Previous(ctx, bucket, object, version)
@@ -94,7 +92,6 @@ func (c *Checker) Check(ctx context.Context, issuer *issuance.Certificate, bucke
 // We expect the database to be much smaller than CRLs, so we load the entire database into memory.
 func (c *Checker) lookForSeenCerts(ctx context.Context, crl *crl_x509.RevocationList) error {
 	unseenCerts, err := c.db.GetAllCerts(ctx)
-
 	if err != nil {
 		return fmt.Errorf("failed to read from db: %v", err)
 	}

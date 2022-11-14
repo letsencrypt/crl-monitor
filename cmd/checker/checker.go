@@ -59,6 +59,7 @@ func main() {
 		Client:  http.DefaultClient,
 		BaseURL: boulderBaseURL,
 	}
+
 	ageLimitDuration := 24 * time.Hour
 	if hasAgeLimit {
 		ageLimitDuration, err = time.ParseDuration(crlAgeLimit)

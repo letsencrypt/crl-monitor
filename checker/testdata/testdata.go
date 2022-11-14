@@ -97,7 +97,6 @@ func MakeIssuer(t *testing.T) (*issuance.Certificate, crypto.Signer) {
 	return issuer, key
 }
 
-
 // MakeCRL takes a revocation list and issuer to sign it.  It returns a DER encoded CRL.
 func MakeCRL(t *testing.T, input *crl_x509.RevocationList, issuer *issuance.Certificate, key crypto.Signer) []byte {
 	ext, err := makeIDPExt("http://dp/", issuer.NameID(), 0)

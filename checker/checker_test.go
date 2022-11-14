@@ -12,7 +12,6 @@ import (
 	expirymock "github.com/letsencrypt/crl-monitor/checker/expiry/mock"
 	"github.com/letsencrypt/crl-monitor/checker/testdata"
 	"github.com/letsencrypt/crl-monitor/db"
-
 	dbmock "github.com/letsencrypt/crl-monitor/db/mock"
 	storagemock "github.com/letsencrypt/crl-monitor/storage/mock"
 )
@@ -60,7 +59,6 @@ func TestCheck(t *testing.T) {
 		fetcher:  &fetcher,
 		ageLimit: 24 * time.Hour,
 	}
-
 
 	ctx := context.Background()
 
