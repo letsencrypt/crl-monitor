@@ -83,7 +83,7 @@ func (c *Churner) Churn(ctx context.Context) error {
 		return err
 	}
 
-	certificates, err := c.acmeClient.ObtainCertificate(ctx, c.acmeAccount, certPrivateKey, c.RandDomains())
+	certificates, err := c.acmeClient.ObtainCertificate(ctx, c.acmeAccount, certPrivateKey, randDomains(c.baseDomain))
 	if err != nil {
 		return err
 	}
@@ -105,15 +105,15 @@ func (c *Churner) Churn(ctx context.Context) error {
 	return c.db.AddCert(ctx, cert, time.Now())
 }
 
-// RandDomains picks the domains to include on the certificate.
+// randDomains picks the domains to include on the certificate.
 // We put a single domain which includes the current time and a random value.
-func (c *Churner) RandDomains() []string {
+func randDomains(baseDomain string) []string {
 	randomSuffix := make([]byte, 2)
 	_, err := rand.Read(randomSuffix)
 	if err != nil {
 		// Something has to go terribly wrong for this
 		panic(fmt.Sprintf("random read failed: %v", err))
 	}
-	domain := fmt.Sprintf("r%dz%x.%s", time.Now().Unix(), randomSuffix, c.baseDomain)
+	domain := fmt.Sprintf("r%dz%x.%s", time.Now().Unix(), randomSuffix, baseDomain)
 	return []string{domain}
 }
