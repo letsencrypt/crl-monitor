@@ -106,6 +106,9 @@ func (db *Database) GetAllCerts(ctx context.Context) (map[string]CertMetadata, e
 // DeleteSerials takes a list of serials that we've seen in the CRL and thus
 // no longer need to keep an eye out for.
 func (db *Database) DeleteSerials(ctx context.Context, serialNumbers [][]byte) error {
+	if len(serialNumbers) == 0 {
+		return nil
+	}
 	var deletes []types.WriteRequest
 	for _, serial := range serialNumbers {
 		key, err := attributevalue.MarshalMap(CertKey{SerialNumber: serial})
@@ -132,7 +135,7 @@ func (db *Database) DeleteSerials(ctx context.Context, serialNumbers [][]byte) e
 func StaticResolver(url string) func(service, region string, opts ...interface{}) (aws.Endpoint, error) {
 	return func(service, region string, opts ...interface{}) (aws.Endpoint, error) {
 		if service != dynamodb.ServiceID {
-			return aws.Endpoint{}, fmt.Errorf("unsupported service %s", service)
+			return aws.Endpoint{}, &aws.EndpointNotFoundError{}
 		}
 		return aws.Endpoint{
 			PartitionID: "aws",
