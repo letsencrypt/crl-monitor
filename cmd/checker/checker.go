@@ -26,6 +26,7 @@ const (
 	S3CRLBucket       cmd.EnvVar = "S3_CRL_BUCKET"
 	ShardNumber       cmd.EnvVar = "SHARD_NUMBER"
 	ShardVersion      cmd.EnvVar = "SHARD_VERSION"
+	CRLAgeLimit       cmd.EnvVar = "CRL_AGE_LIMIT"
 )
 
 func main() {
@@ -36,6 +37,7 @@ func main() {
 	dynamoEndpoint, customEndpoint := DynamoEndpointEnv.LookupEnv()
 	shard := ShardNumber.MustRead("CRL Shard number")
 	shardVersion, hasVersion := ShardVersion.LookupEnv()
+	crlAgeLimit, hasAgeLimit := CRLAgeLimit.LookupEnv()
 
 	ctx := context.Background()
 
@@ -57,8 +59,15 @@ func main() {
 		Client:  http.DefaultClient,
 		BaseURL: boulderBaseURL,
 	}
+	ageLimitDuration := 24 * time.Hour
+	if hasAgeLimit {
+		ageLimitDuration, err = time.ParseDuration(crlAgeLimit)
+		if err != nil {
+			log.Fatalf("Could not parse CRL age limit: %v", err)
+		}
+	}
 
-	c := checker.New(database, storage.New(cfg), &baf, 24*time.Hour)
+	c := checker.New(database, storage.New(cfg), &baf, ageLimitDuration)
 
 	issuer, err := issuance.LoadCertificate(issuerPath)
 	if err != nil {

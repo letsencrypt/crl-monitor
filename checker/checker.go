@@ -47,6 +47,14 @@ func (c *Checker) Check(ctx context.Context, issuer *issuance.Certificate, bucke
 	}
 	log.Printf("loaded CRL number %d (len %d) from %s version %s", crl.Number, len(crl.RevokedCertificates), object, version)
 
+
+	err = checker.Validate(crl, issuer, c.ageLimit)
+	if err != nil {
+		return fmt.Errorf("crl failed linting: %v", err)
+	}
+	log.Printf("crl %d successfully linted", crl.Number)
+
+
 	// And the previous:
 	prevVersion, err := c.storage.Previous(ctx, bucket, object, version)
 	if err != nil {
@@ -63,12 +71,6 @@ func (c *Checker) Check(ctx context.Context, issuer *issuance.Certificate, bucke
 		return fmt.Errorf("error parsing previous crl: %v", err)
 	}
 	log.Printf("loaded previous CRL number %d (len %d) from version %s", prev.Number, len(prev.RevokedCertificates), prevVersion)
-
-	err = checker.Validate(crl, issuer, c.ageLimit)
-	if err != nil {
-		return fmt.Errorf("crl failed linting: %v", err)
-	}
-	log.Printf("crl %d successfully linted", crl.Number)
 
 	earlyRemoved, err := earlyremoval.Check(ctx, c.fetcher, prev, crl)
 	if err != nil {
@@ -91,13 +93,14 @@ func (c *Checker) Check(ctx context.Context, issuer *issuance.Certificate, bucke
 // lookForSeenCerts removes any certs in this CRL from the database, as they've now appeared in a CRL.
 // We expect the database to be much smaller than CRLs, so we load the entire database into memory.
 func (c *Checker) lookForSeenCerts(ctx context.Context, crl *crl_x509.RevocationList) error {
-	monitoring, err := c.db.GetAllCerts(ctx)
+	unseenCerts, err := c.db.GetAllCerts(ctx)
+
 	if err != nil {
 		return fmt.Errorf("failed to read from db: %v", err)
 	}
 	var seenSerials [][]byte
 	for _, seen := range crl.RevokedCertificates {
-		if metadata, ok := monitoring[db.NewCertKey(seen.SerialNumber).SerialString()]; ok {
+		if metadata, ok := unseenCerts[db.NewCertKey(seen.SerialNumber).SerialString()]; ok {
 			seenSerials = append(seenSerials, metadata.SerialNumber)
 		}
 	}
