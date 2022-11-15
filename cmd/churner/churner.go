@@ -30,14 +30,14 @@ func main() {
 	dynamoEndpoint, customEndpoint := DynamoEndpointEnv.LookupEnv()
 	revokeDeadline, err := time.ParseDuration(RevokeDeadline.MustRead("Deadline for revoked certs to appear in CRL, as a duration before the current time"))
 	if err != nil {
-		log.Fatalf("error parsing %s: %v", RevokeDeadline, err)
+		log.Fatalf("Error parsing %s: %v", RevokeDeadline, err)
 	}
 
 	ctx := context.Background()
 
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		log.Fatalf("error creating AWS config: %v", err)
+		log.Fatalf("Error creating AWS config: %v", err)
 	}
 
 	if customEndpoint {
@@ -46,7 +46,7 @@ func main() {
 
 	database, err := db.New(dynamoTable, &cfg)
 	if err != nil {
-		log.Fatalf("error in database setup: %v", err)
+		log.Fatalf("Error in database setup: %v", err)
 	}
 
 	dnsProvider := route53.Provider{}
