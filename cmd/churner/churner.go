@@ -28,7 +28,7 @@ func main() {
 	acmeDirectory := ACMEDirectoryEnv.MustRead("ACME directory URL")
 	dynamoTable := DynamoTableEnv.MustRead("DynamoDB table name")
 	dynamoEndpoint, customEndpoint := DynamoEndpointEnv.LookupEnv()
-	revokeDeadline, err := time.ParseDuration(RevokeDeadline.MustRead("Deadline for revoked certs to appear in CRL"))
+	revokeDeadline, err := time.ParseDuration(RevokeDeadline.MustRead("Deadline for revoked certs to appear in CRL, as a duration before the current time"))
 	if err != nil {
 		log.Fatalf("error parsing %s: %v", RevokeDeadline, err)
 	}
