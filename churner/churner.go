@@ -63,12 +63,12 @@ func New(baseDomain string, acmeDirectory string, dnsProvider certmagic.ACMEDNSP
 func (c *Churner) RegisterAccount(ctx context.Context) error {
 	accountKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return fmt.Errorf("error generating account key: %w", err)
+		return fmt.Errorf("generating account key: %w", err)
 	}
 
 	account, err := c.acmeClient.NewAccount(ctx, acme.Account{PrivateKey: accountKey, TermsOfServiceAgreed: true})
 	if err != nil {
-		return fmt.Errorf("error creating ACME account: %w", err)
+		return fmt.Errorf("creating ACME account: %w", err)
 	}
 
 	c.acmeAccount = account
@@ -124,7 +124,7 @@ func (c *Churner) CheckMissing(ctx context.Context, cutoff time.Time) ([]db.Cert
 	// TODO:  This calls GetAllCerts and filters client-side instead of using an efficient query.
 	unseenCerts, err := c.db.GetAllCerts(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving unseen certificates: %w", err)
+		return nil, fmt.Errorf("retrieving unseen certificates: %w", err)
 	}
 
 	var missed []db.CertMetadata
