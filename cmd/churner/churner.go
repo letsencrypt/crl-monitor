@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"log"
+	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -18,6 +20,7 @@ const (
 	ACMEDirectoryEnv  cmd.EnvVar = "ACME_DIRECTORY"
 	DynamoTableEnv    cmd.EnvVar = "DYNAMO_TABLE"
 	DynamoEndpointEnv cmd.EnvVar = "DYNAMO_ENDPOINT"
+	RevokeDeadline    cmd.EnvVar = "REVOKE_DEADLINE"
 )
 
 func main() {
@@ -25,6 +28,10 @@ func main() {
 	acmeDirectory := ACMEDirectoryEnv.MustRead("ACME directory URL")
 	dynamoTable := DynamoTableEnv.MustRead("DynamoDB table name")
 	dynamoEndpoint, customEndpoint := DynamoEndpointEnv.LookupEnv()
+	revokeDeadline, err := time.ParseDuration(RevokeDeadline.MustRead("Deadline for revoked certs to appear in CRL"))
+	if err != nil {
+		log.Fatalf("error parsing %s: %v", RevokeDeadline, err)
+	}
 
 	ctx := context.Background()
 
@@ -47,6 +54,18 @@ func main() {
 	c, err := churner.New(baseDomain, acmeDirectory, &dnsProvider, database)
 	if err != nil {
 		log.Fatalf("Error in setup: %v", err)
+	}
+
+	missing, err := c.CheckMissing(ctx, time.Now().Add(-1*revokeDeadline))
+	if err != nil {
+		log.Fatalf("Error checking for missing certs: %v", err)
+	}
+	if len(missing) != 0 {
+		log.Printf("Certificates missing in CRL after %s:", revokeDeadline)
+		for _, missed := range missing {
+			log.Printf("cert serial %x revoked at %s (%s ago)", missed.SerialNumber, missed.RevocationTime, time.Since(missed.RevocationTime))
+		}
+		os.Exit(1)
 	}
 
 	err = c.RegisterAccount(ctx)
