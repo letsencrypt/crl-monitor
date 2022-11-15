@@ -12,30 +12,31 @@ sequenceDiagram
   participant ca as Let's Encrypt<br />Certification Authority
   participant ddb as Pending Certificates<br />DynamoDB
   participant s3 as CRL Storage<br />S3 Bucket
-  participant ccl as CRL Checker<br />Lambda
+  participant checker as CRL Checker<br />Lambda
 
   loop timer
-    churn->>ca: Issue certificate
     activate churn
+    churn->>ca: Issue certificate
     churn->>ca: Revoke certificate
     churn->>ddb: Store certificate metadata
+    ddb->>churn: Get previous revoked serials
+    Note over churn: Alert if any<br />expected serials missed<br />inclusion deadline
     deactivate churn
   end
 
   loop New CRL
     ca->>s3: Publish CRL Shard
-    s3->>ccl: S3 Event
-    activate ccl
-    ccl->>s3: Read current CRL
-    ccl->>s3: Read previous CRL
-    Note over ccl: Alert if CRL fails linting
+    activate checker
+    s3->>checker: S3 Event
+    checker->>s3: Read current CRL
+    checker->>s3: Read previous CRL
+    Note over checker: Alert if CRL<br />fails linting
     loop all removed serials
-      ccl->>ca: Get Certificate
+      checker->>ca: Get Certificate
     end
-    Note over ccl: Alert if CRL had any serials leave early
-    ccl->>ddb: Get revoked serials
-    ccl->>ddb: Delete seen serials
-    Note over ccl: Alert if any expected serials<br/>missed inclusion deadline
-    deactivate ccl
+    Note over checker: Alert if CRL had any<br />serials leave early
+    checker->>ddb: Get revoked serials
+    checker->>ddb: Delete seen serials
+    deactivate checker
   end
 ```

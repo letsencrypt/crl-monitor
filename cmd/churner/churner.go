@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"log"
+	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -18,6 +20,7 @@ const (
 	ACMEDirectoryEnv  cmd.EnvVar = "ACME_DIRECTORY"
 	DynamoTableEnv    cmd.EnvVar = "DYNAMO_TABLE"
 	DynamoEndpointEnv cmd.EnvVar = "DYNAMO_ENDPOINT"
+	RevokeDeadline    cmd.EnvVar = "REVOKE_DEADLINE"
 )
 
 func main() {
@@ -25,12 +28,16 @@ func main() {
 	acmeDirectory := ACMEDirectoryEnv.MustRead("ACME directory URL")
 	dynamoTable := DynamoTableEnv.MustRead("DynamoDB table name")
 	dynamoEndpoint, customEndpoint := DynamoEndpointEnv.LookupEnv()
+	revokeDeadline, err := time.ParseDuration(RevokeDeadline.MustRead("Deadline for revoked certs to appear in CRL, as a duration before the current time"))
+	if err != nil {
+		log.Fatalf("Error parsing %s: %v", RevokeDeadline, err)
+	}
 
 	ctx := context.Background()
 
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		log.Fatalf("error creating AWS config: %v", err)
+		log.Fatalf("Error creating AWS config: %v", err)
 	}
 
 	if customEndpoint {
@@ -39,7 +46,7 @@ func main() {
 
 	database, err := db.New(dynamoTable, &cfg)
 	if err != nil {
-		log.Fatalf("error in database setup: %v", err)
+		log.Fatalf("Error in database setup: %v", err)
 	}
 
 	dnsProvider := route53.Provider{}
@@ -58,4 +65,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error in churning: %v", err)
 	}
+
+	missing, err := c.CheckMissing(ctx, time.Now().Add(-1*revokeDeadline))
+	if err != nil {
+		log.Fatalf("Error checking for missing certs: %v", err)
+	}
+	if len(missing) != 0 {
+		log.Printf("Certificates missing in CRL after %s:", revokeDeadline)
+		for _, missed := range missing {
+			log.Printf("Cert serial %x revoked at %s (%s ago)", missed.SerialNumber, missed.RevocationTime, time.Since(missed.RevocationTime))
+		}
+		os.Exit(1)
+	}
+
 }

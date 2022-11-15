@@ -63,12 +63,12 @@ func New(baseDomain string, acmeDirectory string, dnsProvider certmagic.ACMEDNSP
 func (c *Churner) RegisterAccount(ctx context.Context) error {
 	accountKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return fmt.Errorf("error generating account key: %v", err)
+		return fmt.Errorf("generating account key: %w", err)
 	}
 
 	account, err := c.acmeClient.NewAccount(ctx, acme.Account{PrivateKey: accountKey, TermsOfServiceAgreed: true})
 	if err != nil {
-		return fmt.Errorf("error creating ACME account: %v", err)
+		return fmt.Errorf("creating ACME account: %w", err)
 	}
 
 	c.acmeAccount = account
@@ -83,7 +83,7 @@ func (c *Churner) Churn(ctx context.Context) error {
 		return err
 	}
 
-	certificates, err := c.acmeClient.ObtainCertificate(ctx, c.acmeAccount, certPrivateKey, c.RandDomains())
+	certificates, err := c.acmeClient.ObtainCertificate(ctx, c.acmeAccount, certPrivateKey, randDomains(c.baseDomain))
 	if err != nil {
 		return err
 	}
@@ -105,15 +105,34 @@ func (c *Churner) Churn(ctx context.Context) error {
 	return c.db.AddCert(ctx, cert, time.Now())
 }
 
-// RandDomains picks the domains to include on the certificate.
+// randDomains picks the domains to include on the certificate.
 // We put a single domain which includes the current time and a random value.
-func (c *Churner) RandDomains() []string {
+func randDomains(baseDomain string) []string {
 	randomSuffix := make([]byte, 2)
 	_, err := rand.Read(randomSuffix)
 	if err != nil {
 		// Something has to go terribly wrong for this
 		panic(fmt.Sprintf("random read failed: %v", err))
 	}
-	domain := fmt.Sprintf("r%dz%x.%s", time.Now().Unix(), randomSuffix, c.baseDomain)
+	domain := fmt.Sprintf("r%dz%x.%s", time.Now().Unix(), randomSuffix, baseDomain)
 	return []string{domain}
+}
+
+// CheckMissing looks if previously stored serials are still in the database, meaning they
+// haven't been seen in a CRL.  CheckMissing returns all certs revoked before a cutoff time.
+func (c *Churner) CheckMissing(ctx context.Context, cutoff time.Time) ([]db.CertMetadata, error) {
+	// TODO:  This calls GetAllCerts and filters client-side instead of using an efficient query.
+	unseenCerts, err := c.db.GetAllCerts(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("retrieving unseen certificates: %w", err)
+	}
+
+	var missed []db.CertMetadata
+	for _, cert := range unseenCerts {
+		// If the cert was revoked before the cutoff, we should have seen it
+		if cert.RevocationTime.Before(cutoff) {
+			missed = append(missed, cert)
+		}
+	}
+	return missed, nil
 }
