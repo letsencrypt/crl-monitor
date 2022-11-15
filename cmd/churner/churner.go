@@ -56,18 +56,6 @@ func main() {
 		log.Fatalf("Error in setup: %v", err)
 	}
 
-	missing, err := c.CheckMissing(ctx, time.Now().Add(-1*revokeDeadline))
-	if err != nil {
-		log.Fatalf("Error checking for missing certs: %v", err)
-	}
-	if len(missing) != 0 {
-		log.Printf("Certificates missing in CRL after %s:", revokeDeadline)
-		for _, missed := range missing {
-			log.Printf("cert serial %x revoked at %s (%s ago)", missed.SerialNumber, missed.RevocationTime, time.Since(missed.RevocationTime))
-		}
-		os.Exit(1)
-	}
-
 	err = c.RegisterAccount(ctx)
 	if err != nil {
 		log.Fatalf("Error in registering acme account: %v", err)
@@ -77,4 +65,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error in churning: %v", err)
 	}
+
+	missing, err := c.CheckMissing(ctx, time.Now().Add(-1*revokeDeadline))
+	if err != nil {
+		log.Fatalf("Error checking for missing certs: %v", err)
+	}
+	if len(missing) != 0 {
+		log.Printf("Certificates missing in CRL after %s:", revokeDeadline)
+		for _, missed := range missing {
+			log.Printf("Cert serial %x revoked at %s (%s ago)", missed.SerialNumber, missed.RevocationTime, time.Since(missed.RevocationTime))
+		}
+		os.Exit(1)
+	}
+
 }
