@@ -16,11 +16,11 @@ sequenceDiagram
 
   loop timer
     activate churn
+    ddb->>churn: Get previous revoked serials
+    Note over churn: Alert if any<br />expected serials missed<br />inclusion deadline
     churn->>ca: Issue certificate
     churn->>ca: Revoke certificate
     churn->>ddb: Store certificate metadata
-    ddb->>churn: Get previous revoked serials
-    Note over churn: Alert if any<br />expected serials missed<br />inclusion deadline
     deactivate churn
   end
 
