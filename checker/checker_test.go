@@ -3,12 +3,14 @@ package checker
 import (
 	"context"
 	"crypto/x509"
+	"fmt"
 	"math/big"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/letsencrypt/boulder/issuance"
 	expirymock "github.com/letsencrypt/crl-monitor/checker/expiry/mock"
 	"github.com/letsencrypt/crl-monitor/checker/testdata"
 	"github.com/letsencrypt/crl-monitor/db"
@@ -29,8 +31,11 @@ func TestCheck(t *testing.T) {
 	crl3der := testdata.MakeCRL(t, &testdata.CRL3, issuer, key)
 	crl4der := testdata.MakeCRL(t, &testdata.CRL4, issuer, key)
 
+	shouldBeGood := fmt.Sprintf("%d/should-be-good.crl", issuer.NameID())
+	earlyRemoval := fmt.Sprintf("%d/earlyRemoval.crl", issuer.NameID())
+
 	data := map[string][]storagemock.MockObject{
-		"should-be-good": {
+		shouldBeGood: {
 			{
 				VersionID: "the-current-version",
 				Data:      crl2der,
@@ -40,7 +45,7 @@ func TestCheck(t *testing.T) {
 				Data:      crl1der,
 			},
 		},
-		"early-removal": {
+		earlyRemoval: {
 			{
 				VersionID: "the-current-version",
 				Data:      crl4der, // CRL4 has early removals
@@ -53,12 +58,13 @@ func TestCheck(t *testing.T) {
 	}
 	bucket := "crl-test"
 
-	checker := &Checker{
-		db:       dbmock.NewMockedDB(t),
-		storage:  storagemock.New(t, bucket, data),
-		fetcher:  &fetcher,
-		ageLimit: 24 * time.Hour,
-	}
+	checker := New(
+		dbmock.NewMockedDB(t),
+		storagemock.New(t, bucket, data),
+		&fetcher,
+		24*time.Hour,
+		[]*issuance.Certificate{issuer},
+	)
 
 	ctx := context.Background()
 
@@ -68,7 +74,7 @@ func TestCheck(t *testing.T) {
 	shouldNotBeSeen := big.NewInt(12345)
 	require.NoError(t, checker.db.AddCert(ctx, &x509.Certificate{SerialNumber: shouldNotBeSeen}, testdata.Now))
 
-	require.NoError(t, checker.Check(ctx, issuer, bucket, "should-be-good", nil))
+	require.NoError(t, checker.Check(ctx, bucket, shouldBeGood, nil))
 
 	// We should have seen the monitored cert but not the 12345 serial
 	unseenCerts, err := checker.db.GetAllCerts(ctx)
@@ -79,5 +85,5 @@ func TestCheck(t *testing.T) {
 	require.Empty(t, unseenCerts)
 
 	// The "early-removal" object should error on a certificate removed early
-	require.ErrorContains(t, checker.Check(ctx, issuer, bucket, "early-removal", nil), "early removal of 1 certificates detected!")
+	require.ErrorContains(t, checker.Check(ctx, bucket, earlyRemoval, nil), "early removal of 1 certificates detected!")
 }

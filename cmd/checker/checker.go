@@ -68,12 +68,12 @@ func main() {
 		}
 	}
 
-	c := checker.New(database, storage.New(cfg), &baf, ageLimitDuration)
-
 	issuer, err := issuance.LoadCertificate(issuerPath)
 	if err != nil {
 		log.Fatalf("error loading issuer certificate: %v", err)
 	}
+
+	c := checker.New(database, storage.New(cfg), &baf, ageLimitDuration, []*issuance.Certificate{issuer})
 
 	// The version is optional.
 	var optionalVersion *string
@@ -81,7 +81,7 @@ func main() {
 		optionalVersion = &shardVersion
 	}
 
-	err = c.Check(ctx, issuer, bucket, fmt.Sprintf("%d/%s.crl", issuer.NameID(), shard), optionalVersion)
+	err = c.Check(ctx, bucket, fmt.Sprintf("%d/%s.crl", issuer.NameID(), shard), optionalVersion)
 	if err != nil {
 		log.Printf("error checking CRL %s: %v", shard, err)
 	}
