@@ -120,7 +120,6 @@ func (c *Checker) Check(ctx context.Context, bucket, object string, startingVers
 	if err != nil {
 		return err
 	}
-	log.Printf("issuer %s", issuer.Subject.CommonName)
 
 	err = checker.Validate(crl, issuer, c.ageLimit)
 	if err != nil {
