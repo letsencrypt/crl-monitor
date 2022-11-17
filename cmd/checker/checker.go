@@ -10,7 +10,7 @@ import (
 
 const (
 	S3CRLBucket  cmd.EnvVar = "S3_CRL_BUCKET"
-	S3CRLObject  cmd.EnvVar = "S3_OBJECT"
+	S3CRLObject  cmd.EnvVar = "S3_CRL_OBJECT"
 	ShardVersion cmd.EnvVar = "SHARD_VERSION"
 )
 
