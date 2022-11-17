@@ -84,6 +84,7 @@ func NewFromEnv(ctx context.Context) (*Checker, error) {
 		if err != nil {
 			log.Fatalf("error loading issuer certificate: %v", err)
 		}
+		log.Printf("Loaded issuer CN=%s id=%d", issuer.Subject.CommonName, issuer.NameID())
 		issuers = append(issuers, issuer)
 	}
 
