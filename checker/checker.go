@@ -192,9 +192,6 @@ func (c *Checker) issuerForObject(object string) (*issuance.Certificate, error) 
 
 	issuer, ok := c.issuers[prefix]
 	if !ok {
-		for k := range c.issuers {
-			fmt.Printf("issuer %s", k)
-		}
 		return nil, fmt.Errorf("unable to find an issuer for object prefix %s", prefix)
 	}
 

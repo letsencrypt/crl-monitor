@@ -9,15 +9,17 @@ import (
 )
 
 const (
+
 	S3CRLBucket  cmd.EnvVar = "S3_CRL_BUCKET"
 	S3CRLObject  cmd.EnvVar = "S3_CRL_OBJECT"
-	ShardVersion cmd.EnvVar = "SHARD_VERSION"
+	S3CRLVersion cmd.EnvVar = "S3_CRL_VERSION"
+
 )
 
 func main() {
 	bucket := S3CRLBucket.MustRead("S3 CRL bucket name")
 	object := S3CRLObject.MustRead("S3 Object path to CRL file")
-	version, hasVersion := ShardVersion.LookupEnv()
+	version, hasVersion := S3CRLVersion.LookupEnv()
 
 	ctx := context.Background()
 
