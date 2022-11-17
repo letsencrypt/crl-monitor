@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -22,21 +22,21 @@ const (
 	BoulderBaseURL    cmd.EnvVar = "BOULDER_BASE_URL"
 	DynamoEndpointEnv cmd.EnvVar = "DYNAMO_ENDPOINT"
 	DynamoTableEnv    cmd.EnvVar = "DYNAMO_TABLE"
-	IssuerPath        cmd.EnvVar = "ISSUER_PATH"
+	IssuerPaths       cmd.EnvVar = "ISSUER_PATHS"
 	S3CRLBucket       cmd.EnvVar = "S3_CRL_BUCKET"
-	ShardNumber       cmd.EnvVar = "SHARD_NUMBER"
-	ShardVersion      cmd.EnvVar = "SHARD_VERSION"
+	S3CRLObject       cmd.EnvVar = "S3_CRL_OBJECT"
+	S3CRLVersion      cmd.EnvVar = "S3_CRL_VERSION"
 	CRLAgeLimit       cmd.EnvVar = "CRL_AGE_LIMIT"
 )
 
 func main() {
 	boulderBaseURL := BoulderBaseURL.MustRead("Boulder endpoint to fetch certificates from")
 	bucket := S3CRLBucket.MustRead("S3 CRL bucket name")
-	issuerPath := IssuerPath.MustRead("Path to PEM-formatted CRL issuer certificate")
+	issuerPaths := IssuerPaths.MustRead("Colon (:) separated list of paths to PEM-formatted CRL issuer certificates")
 	dynamoTable := DynamoTableEnv.MustRead("DynamoDB table name")
 	dynamoEndpoint, customEndpoint := DynamoEndpointEnv.LookupEnv()
-	shard := ShardNumber.MustRead("CRL Shard number")
-	shardVersion, hasVersion := ShardVersion.LookupEnv()
+	object := S3CRLObject.MustRead("S3 Object path to CRL file")
+	version, hasVersion := S3CRLVersion.LookupEnv()
 	crlAgeLimit, hasAgeLimit := CRLAgeLimit.LookupEnv()
 
 	ctx := context.Background()
@@ -68,21 +68,25 @@ func main() {
 		}
 	}
 
-	issuer, err := issuance.LoadCertificate(issuerPath)
-	if err != nil {
-		log.Fatalf("error loading issuer certificate: %v", err)
+	var issuers []*issuance.Certificate
+	for _, issuer := range strings.Split(issuerPaths, ":") {
+		issuer, err := issuance.LoadCertificate(issuer)
+		if err != nil {
+			log.Fatalf("error loading issuer certificate: %v", err)
+		}
+		issuers = append(issuers, issuer)
 	}
 
-	c := checker.New(database, storage.New(cfg), &baf, ageLimitDuration, []*issuance.Certificate{issuer})
+	c := checker.New(database, storage.New(cfg), &baf, ageLimitDuration, issuers)
 
 	// The version is optional.
 	var optionalVersion *string
 	if hasVersion {
-		optionalVersion = &shardVersion
+		optionalVersion = &version
 	}
 
-	err = c.Check(ctx, bucket, fmt.Sprintf("%d/%s.crl", issuer.NameID(), shard), optionalVersion)
+	err = c.Check(ctx, bucket, object, optionalVersion)
 	if err != nil {
-		log.Printf("error checking CRL %s: %v", shard, err)
+		log.Printf("error checking CRL %s: %v", object, err)
 	}
 }
