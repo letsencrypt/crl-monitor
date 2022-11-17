@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/letsencrypt/boulder/crl/checker"
@@ -14,12 +15,18 @@ import (
 	"github.com/letsencrypt/crl-monitor/storage"
 )
 
-func New(database *db.Database, storage *storage.Storage, fetcher earlyremoval.Fetcher, ageLimit time.Duration) Checker {
+func New(database *db.Database, storage *storage.Storage, fetcher earlyremoval.Fetcher, ageLimit time.Duration, issuers []*issuance.Certificate) Checker {
+	issuerMap := make(map[string]*issuance.Certificate, len(issuers))
+	for _, issuer := range issuers {
+		issuerMap[fmt.Sprintf("%d", issuer.NameID())] = issuer
+	}
+
 	return Checker{
 		db:       database,
 		storage:  storage,
 		fetcher:  fetcher,
 		ageLimit: ageLimit,
+		issuers:  issuerMap,
 	}
 }
 
@@ -30,11 +37,12 @@ type Checker struct {
 	storage  *storage.Storage
 	fetcher  earlyremoval.Fetcher
 	ageLimit time.Duration
+	issuers  map[string]*issuance.Certificate
 }
 
 // Check fetches a CRL and its previous version.  It runs lints on the CRL, checks for early removal, and removes any
 // certificates we're waiting for out of the database.
-func (c *Checker) Check(ctx context.Context, issuer *issuance.Certificate, bucket, object string, startingVersion *string) error {
+func (c *Checker) Check(ctx context.Context, bucket, object string, startingVersion *string) error {
 	// Read the current CRL shard
 	crlDER, version, err := c.storage.Fetch(ctx, bucket, object, startingVersion)
 	if err != nil {
@@ -46,6 +54,12 @@ func (c *Checker) Check(ctx context.Context, issuer *issuance.Certificate, bucke
 		return fmt.Errorf("error parsing current crl: %v", err)
 	}
 	log.Printf("loaded CRL number %d (len %d) from %s version %s", crl.Number, len(crl.RevokedCertificates), object, version)
+
+	issuer, err := c.issuerForObject(object)
+	if err != nil {
+		return err
+	}
+	log.Printf("issuer %s", issuer.Subject.CommonName)
 
 	err = checker.Validate(crl, issuer, c.ageLimit)
 	if err != nil {
@@ -107,4 +121,19 @@ func (c *Checker) lookForSeenCerts(ctx context.Context, crl *crl_x509.Revocation
 		return fmt.Errorf("failed to delete from db: %v", err)
 	}
 	return nil
+}
+
+// issuerForObject takes an s3 object path, extracts the issuer prefix, and returns the right issuance.Certificate
+func (c *Checker) issuerForObject(object string) (*issuance.Certificate, error) {
+	prefix, _, found := strings.Cut(object, "/")
+	if !found {
+		return nil, fmt.Errorf("object path did not contain /: %s", object)
+	}
+
+	issuer, ok := c.issuers[prefix]
+	if !ok {
+		return nil, fmt.Errorf("unable to find an issuer for object prefix %s", prefix)
+	}
+
+	return issuer, nil
 }
