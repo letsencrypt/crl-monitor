@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.17.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.27.11
 	github.com/caddyserver/certmagic v0.17.2
-	github.com/letsencrypt/boulder v0.0.0-20221026224552-9213bd099359
+	github.com/letsencrypt/boulder v0.0.0-20221118011707-b3255725084e
 	github.com/libdns/route53 v1.3.0
 	github.com/mholt/acmez v1.0.4
 	github.com/stretchr/testify v1.8.0
@@ -61,12 +61,12 @@ require (
 	github.com/pelletier/go-toml v1.9.3 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.13.0 // indirect
-	github.com/prometheus/client_model v0.2.0 // indirect
+	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.3.5 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
-	github.com/weppos/publicsuffix-go v0.20.1-0.20221016123633-0ad56ba8bf2e // indirect
+	github.com/weppos/publicsuffix-go v0.20.1-0.20221031080346-e4081aa8a6de // indirect
 	github.com/zmap/zcrypto v0.0.0-20220402174210-599ec18ecbac // indirect
 	github.com/zmap/zlint/v3 v3.4.0 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
