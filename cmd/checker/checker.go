@@ -9,11 +9,9 @@ import (
 )
 
 const (
-
 	S3CRLBucket  cmd.EnvVar = "S3_CRL_BUCKET"
 	S3CRLObject  cmd.EnvVar = "S3_CRL_OBJECT"
 	S3CRLVersion cmd.EnvVar = "S3_CRL_VERSION"
-
 )
 
 func main() {
