@@ -2,8 +2,11 @@ package checker
 
 import (
 	"context"
+	"crypto"
+	"crypto/x509"
 	"fmt"
 	"log"
+	"math/big"
 	"net/http"
 	"strings"
 	"time"
@@ -11,9 +14,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 
+	"github.com/letsencrypt/boulder/core"
 	"github.com/letsencrypt/boulder/crl/checker"
 	"github.com/letsencrypt/boulder/crl/crl_x509"
-	"github.com/letsencrypt/boulder/issuance"
 	"github.com/letsencrypt/crl-monitor/checker/earlyremoval"
 	"github.com/letsencrypt/crl-monitor/checker/expiry"
 	"github.com/letsencrypt/crl-monitor/cmd"
@@ -29,10 +32,23 @@ const (
 	IssuerPaths       cmd.EnvVar = "ISSUER_PATHS"
 )
 
-func New(database *db.Database, storage *storage.Storage, fetcher earlyremoval.Fetcher, ageLimit time.Duration, issuers []*issuance.Certificate) *Checker {
-	issuerMap := make(map[string]*issuance.Certificate, len(issuers))
+type IssuerNameID int64
+
+func truncatedHash(name []byte) IssuerNameID {
+	h := crypto.SHA1.New()
+	h.Write(name)
+	s := h.Sum(nil)
+	return IssuerNameID(big.NewInt(0).SetBytes(s[:7]).Int64())
+}
+
+func nameID(issuer *x509.Certificate) string {
+	return fmt.Sprintf("%d", truncatedHash(issuer.RawSubject))
+}
+
+func New(database *db.Database, storage *storage.Storage, fetcher earlyremoval.Fetcher, ageLimit time.Duration, issuers []*x509.Certificate) *Checker {
+	issuerMap := make(map[string]*x509.Certificate, len(issuers))
 	for _, issuer := range issuers {
-		issuerMap[fmt.Sprintf("%d", issuer.NameID())] = issuer
+		issuerMap[nameID(issuer)] = issuer
 	}
 
 	return &Checker{
@@ -78,13 +94,13 @@ func NewFromEnv(ctx context.Context) (*Checker, error) {
 		}
 	}
 
-	var issuers []*issuance.Certificate
+	var issuers []*x509.Certificate
 	for _, issuer := range strings.Split(issuerPaths, ":") {
-		issuer, err := issuance.LoadCertificate(issuer)
+		issuer, err := core.LoadCert(issuer)
 		if err != nil {
 			log.Fatalf("error loading issuer certificate: %v", err)
 		}
-		log.Printf("Loaded issuer CN=%s id=%d", issuer.Subject.CommonName, issuer.NameID())
+		log.Printf("Loaded issuer CN=%s", issuer.Subject.CommonName)
 		issuers = append(issuers, issuer)
 	}
 
@@ -98,7 +114,7 @@ type Checker struct {
 	storage  *storage.Storage
 	fetcher  earlyremoval.Fetcher
 	ageLimit time.Duration
-	issuers  map[string]*issuance.Certificate
+	issuers  map[string]*x509.Certificate
 }
 
 // Check fetches a CRL and its previous version.  It runs lints on the CRL, checks for early removal, and removes any
@@ -183,8 +199,8 @@ func (c *Checker) lookForSeenCerts(ctx context.Context, crl *crl_x509.Revocation
 	return nil
 }
 
-// issuerForObject takes an s3 object path, extracts the issuer prefix, and returns the right issuance.Certificate
-func (c *Checker) issuerForObject(object string) (*issuance.Certificate, error) {
+// issuerForObject takes an s3 object path, extracts the issuer prefix, and returns the right x509.Certificate
+func (c *Checker) issuerForObject(object string) (*x509.Certificate, error) {
 	prefix, _, found := strings.Cut(object, "/")
 	if !found {
 		return nil, fmt.Errorf("object path did not contain /: %s", object)
