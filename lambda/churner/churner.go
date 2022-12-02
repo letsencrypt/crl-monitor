@@ -44,8 +44,8 @@ func main() {
 
 	c, err := churner.NewFromEnv(ctx)
 	if err != nil {
-		log.Fatalf("Error in setup: %v", err)
+		log.Fatalf("Error creating Churner: %v", err)
 	}
 
-	lambda.Start(HandleRequest(c))
+	lambda.StartWithOptions(HandleRequest(c), lambda.WithContext(ctx))
 }
