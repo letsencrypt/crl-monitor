@@ -8,14 +8,27 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"log"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/caddyserver/certmagic"
+	"github.com/libdns/route53"
 	"github.com/mholt/acmez"
 	"github.com/mholt/acmez/acme"
 	"go.uber.org/zap"
 
+	"github.com/letsencrypt/crl-monitor/cmd"
 	"github.com/letsencrypt/crl-monitor/db"
+)
+
+const (
+	BaseDomainEnv     cmd.EnvVar = "BASE_DOMAIN"
+	ACMEDirectoryEnv  cmd.EnvVar = "ACME_DIRECTORY"
+	DynamoTableEnv    cmd.EnvVar = "DYNAMO_TABLE"
+	DynamoEndpointEnv cmd.EnvVar = "DYNAMO_ENDPOINT"
+	RevokeDeadline    cmd.EnvVar = "REVOKE_DEADLINE"
 )
 
 // The Churner creats and immediately revokes certificates. Certificates are
@@ -26,13 +39,14 @@ type Churner struct {
 	acmeClient  acmez.Client
 	acmeAccount acme.Account
 	db          *db.Database
+	cutoff      time.Time
 }
 
 // New returns a Churner with an ACME client configured.
 // `baseDomain` should be a domain name that the `dnsProvider` can create/delete
 // records for. The certs will be issued from the CA at `acmeDirectory`.
 // The resulting serials are stored into `db`
-func New(baseDomain string, acmeDirectory string, dnsProvider certmagic.ACMEDNSProvider, db *db.Database) (*Churner, error) {
+func New(baseDomain string, acmeDirectory string, dnsProvider certmagic.ACMEDNSProvider, db *db.Database, cutoff time.Time) (*Churner, error) {
 	zapLogger, err := zap.NewProduction()
 	if err != nil {
 		return nil, err
@@ -55,7 +69,40 @@ func New(baseDomain string, acmeDirectory string, dnsProvider certmagic.ACMEDNSP
 		baseDomain: baseDomain,
 		acmeClient: acmeClient,
 		db:         db,
+		cutoff:     cutoff,
 	}, nil
+}
+
+func NewFromEnv(ctx context.Context) (*Churner, error) {
+	baseDomain := BaseDomainEnv.MustRead("Base domain to issue certificates under")
+	acmeDirectory := ACMEDirectoryEnv.MustRead("ACME directory URL")
+	dynamoTable := DynamoTableEnv.MustRead("DynamoDB table name")
+	dynamoEndpoint, customEndpoint := DynamoEndpointEnv.LookupEnv()
+
+	revokeDeadline, err := time.ParseDuration(RevokeDeadline.MustRead("Deadline for revoked certs to appear in CRL, as a duration before the current time"))
+	if err != nil {
+		log.Fatalf("Error parsing %s: %v", RevokeDeadline, err)
+	}
+
+	cutoff := time.Now().Add(-1 * revokeDeadline)
+
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		log.Fatalf("Error creating AWS config: %v", err)
+	}
+
+	if customEndpoint {
+		cfg.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(db.StaticResolver(dynamoEndpoint))
+	}
+
+	database, err := db.New(dynamoTable, &cfg)
+	if err != nil {
+		log.Fatalf("Error in database setup: %v", err)
+	}
+
+	dnsProvider := route53.Provider{}
+
+	return New(baseDomain, acmeDirectory, &dnsProvider, database, cutoff)
 }
 
 // RegisterAccount sets up a new account.
@@ -120,7 +167,7 @@ func randDomains(baseDomain string) []string {
 
 // CheckMissing looks if previously stored serials are still in the database, meaning they
 // haven't been seen in a CRL.  CheckMissing returns all certs revoked before a cutoff time.
-func (c *Churner) CheckMissing(ctx context.Context, cutoff time.Time) ([]db.CertMetadata, error) {
+func (c *Churner) CheckMissing(ctx context.Context) ([]db.CertMetadata, error) {
 	// TODO:  This calls GetAllCerts and filters client-side instead of using an efficient query.
 	unseenCerts, err := c.db.GetAllCerts(ctx)
 	if err != nil {
@@ -130,7 +177,7 @@ func (c *Churner) CheckMissing(ctx context.Context, cutoff time.Time) ([]db.Cert
 	var missed []db.CertMetadata
 	for _, cert := range unseenCerts {
 		// If the cert was revoked before the cutoff, we should have seen it
-		if cert.RevocationTime.Before(cutoff) {
+		if cert.RevocationTime.Before(c.cutoff) {
 			missed = append(missed, cert)
 		}
 	}

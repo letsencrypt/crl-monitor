@@ -4,30 +4,91 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"strings"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
 
 	"github.com/letsencrypt/boulder/crl/checker"
 	"github.com/letsencrypt/boulder/crl/crl_x509"
 	"github.com/letsencrypt/boulder/issuance"
 	"github.com/letsencrypt/crl-monitor/checker/earlyremoval"
+	"github.com/letsencrypt/crl-monitor/checker/expiry"
+	"github.com/letsencrypt/crl-monitor/cmd"
 	"github.com/letsencrypt/crl-monitor/db"
 	"github.com/letsencrypt/crl-monitor/storage"
 )
 
-func New(database *db.Database, storage *storage.Storage, fetcher earlyremoval.Fetcher, ageLimit time.Duration, issuers []*issuance.Certificate) Checker {
+const (
+	BoulderBaseURL    cmd.EnvVar = "BOULDER_BASE_URL"
+	DynamoEndpointEnv cmd.EnvVar = "DYNAMO_ENDPOINT"
+	DynamoTableEnv    cmd.EnvVar = "DYNAMO_TABLE"
+	CRLAgeLimit       cmd.EnvVar = "CRL_AGE_LIMIT"
+	IssuerPaths       cmd.EnvVar = "ISSUER_PATHS"
+)
+
+func New(database *db.Database, storage *storage.Storage, fetcher earlyremoval.Fetcher, ageLimit time.Duration, issuers []*issuance.Certificate) *Checker {
 	issuerMap := make(map[string]*issuance.Certificate, len(issuers))
 	for _, issuer := range issuers {
 		issuerMap[fmt.Sprintf("%d", issuer.NameID())] = issuer
 	}
 
-	return Checker{
+	return &Checker{
 		db:       database,
 		storage:  storage,
 		fetcher:  fetcher,
 		ageLimit: ageLimit,
 		issuers:  issuerMap,
 	}
+}
+
+func NewFromEnv(ctx context.Context) (*Checker, error) {
+	boulderBaseURL := BoulderBaseURL.MustRead("Boulder endpoint to fetch certificates from")
+	dynamoTable := DynamoTableEnv.MustRead("DynamoDB table name")
+	dynamoEndpoint, customEndpoint := DynamoEndpointEnv.LookupEnv()
+	crlAgeLimit, hasAgeLimit := CRLAgeLimit.LookupEnv()
+	issuerPaths := IssuerPaths.MustRead("Colon (:) separated list of paths to PEM-formatted CRL issuer certificates")
+
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("creating AWS config: %w", err)
+	}
+
+	if customEndpoint {
+		cfg.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(db.StaticResolver(dynamoEndpoint))
+	}
+
+	database, err := db.New(dynamoTable, &cfg)
+	if err != nil {
+		return nil, fmt.Errorf("database setup: %w", err)
+	}
+
+	baf := expiry.BoulderAPIFetcher{
+		Client:  http.DefaultClient,
+		BaseURL: boulderBaseURL,
+	}
+
+	ageLimitDuration := 24 * time.Hour
+	if hasAgeLimit {
+		ageLimitDuration, err = time.ParseDuration(crlAgeLimit)
+		if err != nil {
+			return nil, fmt.Errorf("parsing CRL age limit: %w", err)
+		}
+	}
+
+	var issuers []*issuance.Certificate
+	for _, issuer := range strings.Split(issuerPaths, ":") {
+		issuer, err := issuance.LoadCertificate(issuer)
+		if err != nil {
+			log.Fatalf("error loading issuer certificate: %v", err)
+		}
+		log.Printf("Loaded issuer CN=%s id=%d", issuer.Subject.CommonName, issuer.NameID())
+		issuers = append(issuers, issuer)
+	}
+
+	return New(database, storage.New(cfg), &baf, ageLimitDuration, issuers), nil
 }
 
 // The Checker handles fetching and linting CRLs.
@@ -59,7 +120,6 @@ func (c *Checker) Check(ctx context.Context, bucket, object string, startingVers
 	if err != nil {
 		return err
 	}
-	log.Printf("issuer %s", issuer.Subject.CommonName)
 
 	err = checker.Validate(crl, issuer, c.ageLimit)
 	if err != nil {

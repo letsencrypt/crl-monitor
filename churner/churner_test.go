@@ -25,10 +25,10 @@ func TestRandDomains(t *testing.T) {
 }
 
 func TestCheckMissing(t *testing.T) {
-	churner := Churner{db: mock.NewMockedDB(t)}
-
 	now := time.Now()
 	ctx := context.Background()
+
+	churner := Churner{db: mock.NewMockedDB(t), cutoff: now.Add(-24 * time.Hour)}
 
 	sn1 := big.NewInt(1111111)
 	sn2 := big.NewInt(2022)
@@ -38,7 +38,7 @@ func TestCheckMissing(t *testing.T) {
 	require.NoError(t, churner.db.AddCert(ctx, &x509.Certificate{SerialNumber: sn1}, yesterday))
 	require.NoError(t, churner.db.AddCert(ctx, &x509.Certificate{SerialNumber: sn2}, now))
 
-	missing, err := churner.CheckMissing(ctx, now.Add(-24*time.Hour))
+	missing, err := churner.CheckMissing(ctx)
 	require.NoError(t, err)
 
 	// We should get back sn1 only, which was revoked more than 24 hours ago
