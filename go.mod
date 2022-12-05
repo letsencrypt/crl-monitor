@@ -10,10 +10,11 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.17.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.27.11
 	github.com/caddyserver/certmagic v0.17.2
-	github.com/letsencrypt/boulder v0.0.0-20221118011707-b3255725084e
+	github.com/letsencrypt/boulder v0.0.0-20221205200957-f089aa5d5f1e
 	github.com/libdns/route53 v1.3.0
 	github.com/mholt/acmez v1.0.4
 	github.com/stretchr/testify v1.8.0
+	go.uber.org/multierr v1.6.0
 	go.uber.org/zap v1.23.0
 )
 
@@ -70,7 +71,6 @@ require (
 	github.com/zmap/zcrypto v0.0.0-20220402174210-599ec18ecbac // indirect
 	github.com/zmap/zlint/v3 v3.4.0 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
-	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/net v0.0.0-20220926192436-02166a98028e // indirect
