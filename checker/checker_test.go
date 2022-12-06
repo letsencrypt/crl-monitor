@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/letsencrypt/boulder/issuance"
+	"github.com/letsencrypt/boulder/core"
 	expirymock "github.com/letsencrypt/crl-monitor/checker/expiry/mock"
 	"github.com/letsencrypt/crl-monitor/checker/testdata"
 	"github.com/letsencrypt/crl-monitor/db"
@@ -26,13 +26,17 @@ func TestCheck(t *testing.T) {
 	fetcher.AddTestData(big.NewInt(2), cert2expiry)
 
 	issuer, key := testdata.MakeIssuer(t)
-	crl1der := testdata.MakeCRL(t, &testdata.CRL1, issuer, key)
-	crl2der := testdata.MakeCRL(t, &testdata.CRL2, issuer, key)
-	crl3der := testdata.MakeCRL(t, &testdata.CRL3, issuer, key)
-	crl4der := testdata.MakeCRL(t, &testdata.CRL4, issuer, key)
 
-	shouldBeGood := fmt.Sprintf("%d/should-be-good.crl", issuer.NameID())
-	earlyRemoval := fmt.Sprintf("%d/earlyRemoval.crl", issuer.NameID())
+	issuerName := nameID(issuer)
+	shouldBeGood := fmt.Sprintf("%s/should-be-good.crl", issuerName)
+	earlyRemoval := fmt.Sprintf("%s/early-removal.crl", issuerName)
+	shouldBeGoodIDP := fmt.Sprintf("http://idp/%s", shouldBeGood)
+	earlyRemovalIDP := fmt.Sprintf("http://idp/%s", earlyRemoval)
+
+	crl1der := testdata.MakeCRL(t, &testdata.CRL1, shouldBeGoodIDP, issuer, key)
+	crl2der := testdata.MakeCRL(t, &testdata.CRL2, shouldBeGoodIDP, issuer, key)
+	crl3der := testdata.MakeCRL(t, &testdata.CRL3, earlyRemovalIDP, issuer, key)
+	crl4der := testdata.MakeCRL(t, &testdata.CRL4, earlyRemovalIDP, issuer, key)
 
 	data := map[string][]storagemock.MockObject{
 		shouldBeGood: {
@@ -63,7 +67,7 @@ func TestCheck(t *testing.T) {
 		storagemock.New(t, bucket, data),
 		&fetcher,
 		24*time.Hour,
-		[]*issuance.Certificate{issuer},
+		[]*x509.Certificate{issuer},
 	)
 
 	ctx := context.Background()
@@ -86,4 +90,35 @@ func TestCheck(t *testing.T) {
 
 	// The "early-removal" object should error on a certificate removed early
 	require.ErrorContains(t, checker.Check(ctx, bucket, earlyRemoval, nil), "early removal of 1 certificates detected!")
+}
+
+func Test_nameID(t *testing.T) {
+	tests := []struct {
+		issuerPath string
+		want       string
+	}{
+		{
+			issuerPath: "testdata/r3.pem",
+			want:       "20506757847264211",
+		},
+		{
+			issuerPath: "testdata/e1.pem",
+			want:       "67430855296768143",
+		},
+		{
+			issuerPath: "testdata/stg-r3.pem",
+			want:       "58367272336442518",
+		},
+		{
+			issuerPath: "testdata/stg-e1.pem",
+			want:       "4169287449788112",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.issuerPath, func(t *testing.T) {
+			issuer, err := core.LoadCert(tt.issuerPath)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, nameID(issuer))
+		})
+	}
 }
