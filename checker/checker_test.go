@@ -10,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/letsencrypt/boulder/issuance"
 	expirymock "github.com/letsencrypt/crl-monitor/checker/expiry/mock"
 	"github.com/letsencrypt/crl-monitor/checker/testdata"
 	"github.com/letsencrypt/crl-monitor/db"
@@ -26,13 +25,17 @@ func TestCheck(t *testing.T) {
 	fetcher.AddTestData(big.NewInt(2), cert2expiry)
 
 	issuer, key := testdata.MakeIssuer(t)
-	crl1der := testdata.MakeCRL(t, &testdata.CRL1, issuer, key)
-	crl2der := testdata.MakeCRL(t, &testdata.CRL2, issuer, key)
-	crl3der := testdata.MakeCRL(t, &testdata.CRL3, issuer, key)
-	crl4der := testdata.MakeCRL(t, &testdata.CRL4, issuer, key)
 
-	shouldBeGood := fmt.Sprintf("%d/should-be-good.crl", issuer.NameID())
-	earlyRemoval := fmt.Sprintf("%d/earlyRemoval.crl", issuer.NameID())
+	issuerName := nameID(issuer)
+	shouldBeGood := fmt.Sprintf("%s/should-be-good.crl", issuerName)
+	earlyRemoval := fmt.Sprintf("%s/early-removal.crl", issuerName)
+	shouldBeGoodIDP := fmt.Sprintf("http://idp/%s", shouldBeGood)
+	earlyRemovalIDP := fmt.Sprintf("http://idp/%s", earlyRemoval)
+
+	crl1der := testdata.MakeCRL(t, &testdata.CRL1, shouldBeGoodIDP, issuer, key)
+	crl2der := testdata.MakeCRL(t, &testdata.CRL2, shouldBeGoodIDP, issuer, key)
+	crl3der := testdata.MakeCRL(t, &testdata.CRL3, earlyRemovalIDP, issuer, key)
+	crl4der := testdata.MakeCRL(t, &testdata.CRL4, earlyRemovalIDP, issuer, key)
 
 	data := map[string][]storagemock.MockObject{
 		shouldBeGood: {
@@ -63,7 +66,7 @@ func TestCheck(t *testing.T) {
 		storagemock.New(t, bucket, data),
 		&fetcher,
 		24*time.Hour,
-		[]*issuance.Certificate{issuer},
+		[]*x509.Certificate{issuer},
 	)
 
 	ctx := context.Background()

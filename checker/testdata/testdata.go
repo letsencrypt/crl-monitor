@@ -8,7 +8,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
-	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -16,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/letsencrypt/boulder/crl/crl_x509"
-	"github.com/letsencrypt/boulder/issuance"
 )
 
 var Now = time.Now()
@@ -74,7 +72,7 @@ var CRL5 = crl_x509.RevocationList{
 	RevokedCertificates: nil,
 }
 
-func MakeIssuer(t *testing.T) (*issuance.Certificate, crypto.Signer) {
+func MakeIssuer(t *testing.T) (*x509.Certificate, crypto.Signer) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 
@@ -91,25 +89,22 @@ func MakeIssuer(t *testing.T) (*issuance.Certificate, crypto.Signer) {
 	cert, err := x509.ParseCertificate(certDER)
 	require.NoError(t, err)
 
-	issuer, err := issuance.NewCertificate(cert)
-	require.NoError(t, err)
-
-	return issuer, key
+	return cert, key
 }
 
 // MakeCRL takes a revocation list and issuer to sign it.  It returns a DER encoded CRL.
-func MakeCRL(t *testing.T, input *crl_x509.RevocationList, issuer *issuance.Certificate, key crypto.Signer) []byte {
-	ext, err := makeIDPExt("http://dp/", issuer.NameID(), 0)
+func MakeCRL(t *testing.T, input *crl_x509.RevocationList, idp string, issuer *x509.Certificate, key crypto.Signer) []byte {
+	ext, err := makeIDPExt(idp)
 	require.NoError(t, err)
 
 	input.ExtraExtensions = append(input.ExtraExtensions, *ext)
-	der, err := crl_x509.CreateRevocationList(rand.Reader, input, issuer.Certificate, key)
+	der, err := crl_x509.CreateRevocationList(rand.Reader, input, issuer, key)
 	require.NoError(t, err)
 	return der
 }
 
 // makeIDPExt was lifted out of Boulder
-func makeIDPExt(base string, issuer issuance.IssuerNameID, shardIdx int64) (*pkix.Extension, error) {
+func makeIDPExt(issuingDistributionPoint string) (*pkix.Extension, error) {
 	type distributionPointName struct {
 		FullName []asn1.RawValue `asn1:"optional,tag:0"`
 	}
@@ -122,7 +117,7 @@ func makeIDPExt(base string, issuer issuance.IssuerNameID, shardIdx int64) (*pki
 				{ // GeneralName
 					Class: 2, // context-specific
 					Tag:   6, // uniformResourceIdentifier, IA5String
-					Bytes: []byte(fmt.Sprintf("%s/%d/%d.crl", base, issuer, shardIdx)),
+					Bytes: []byte(issuingDistributionPoint),
 				},
 			},
 		},
