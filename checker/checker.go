@@ -32,17 +32,11 @@ const (
 	IssuerPaths       cmd.EnvVar = "ISSUER_PATHS"
 )
 
-type IssuerNameID int64
-
-func truncatedHash(name []byte) IssuerNameID {
-	h := crypto.SHA1.New()
-	h.Write(name)
-	s := h.Sum(nil)
-	return IssuerNameID(big.NewInt(0).SetBytes(s[:7]).Int64())
-}
-
 func nameID(issuer *x509.Certificate) string {
-	return fmt.Sprintf("%d", truncatedHash(issuer.RawSubject))
+	h := crypto.SHA1.New()
+	h.Write(issuer.RawSubject)
+	s := h.Sum(nil)
+	return fmt.Sprintf("%d", big.NewInt(0).SetBytes(s[:7]))
 }
 
 func New(database *db.Database, storage *storage.Storage, fetcher earlyremoval.Fetcher, ageLimit time.Duration, issuers []*x509.Certificate) *Checker {

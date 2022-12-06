@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/letsencrypt/boulder/core"
 	expirymock "github.com/letsencrypt/crl-monitor/checker/expiry/mock"
 	"github.com/letsencrypt/crl-monitor/checker/testdata"
 	"github.com/letsencrypt/crl-monitor/db"
@@ -89,4 +90,35 @@ func TestCheck(t *testing.T) {
 
 	// The "early-removal" object should error on a certificate removed early
 	require.ErrorContains(t, checker.Check(ctx, bucket, earlyRemoval, nil), "early removal of 1 certificates detected!")
+}
+
+func Test_nameID(t *testing.T) {
+	tests := []struct {
+		issuerPath string
+		want       string
+	}{
+		{
+			issuerPath: "testdata/r3.pem",
+			want:       "20506757847264211",
+		},
+		{
+			issuerPath: "testdata/e1.pem",
+			want:       "67430855296768143",
+		},
+		{
+			issuerPath: "testdata/stg-r3.pem",
+			want:       "58367272336442518",
+		},
+		{
+			issuerPath: "testdata/stg-e1.pem",
+			want:       "4169287449788112",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.issuerPath, func(t *testing.T) {
+			issuer, err := core.LoadCert(tt.issuerPath)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, nameID(issuer))
+		})
+	}
 }
