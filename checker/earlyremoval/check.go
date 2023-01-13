@@ -20,10 +20,10 @@ type EarlyRemoval struct {
 	NotAfter time.Time
 }
 
-// Return a subset from a slice of up to `max` size.
-// We always select the first and last 10% of the input array and sample from
-// the center in order to prioritize checking for any potential edge cases in
-// the CRL generating code at the start and end of the data.
+// sample returns a subset from a slice of up to `max` size.
+// sample always includes the first 10% and last 10% of the input data, and
+// selects data randomly from the middle of the input.  Ordering is not
+// preserved,
 func sample[T any](input []T, max int) []T {
 	if len(input) <= max {
 		return input
