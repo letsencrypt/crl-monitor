@@ -45,8 +45,6 @@ func sample[T any](input []T, max int) []T {
 		sampled = append(sampled, middle[idx])
 	}
 
-	rand.Perm(len(input) - (2 * tenPercent))
-
 	// Final 10%:
 	remaining := max - len(sampled)
 	sampled = append(sampled, input[len(input)-remaining:]...)
