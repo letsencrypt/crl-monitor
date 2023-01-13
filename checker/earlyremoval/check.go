@@ -46,8 +46,7 @@ func sample[T any](input []T, max int) []T {
 	}
 
 	// Final 10%:
-	remaining := max - len(sampled)
-	sampled = append(sampled, input[len(input)-remaining:]...)
+	sampled = append(sampled, input[len(input)-tenPercent:]...)
 
 	return sampled
 }
