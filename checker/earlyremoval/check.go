@@ -21,9 +21,9 @@ type EarlyRemoval struct {
 }
 
 // sample returns a subset from a slice of up to `max` size.
-// sample always includes the first 10% and last 10% of the input data, and
-// selects data randomly from the middle of the input.  Ordering is not
-// preserved,
+// The first 10% and last 10% of the returned data come directly from the input
+// to help catch edge cases more likely to occur at the input's start and end.
+// Ordering of the entries in the returned data is not preserved from the input.
 func sample[T any](input []T, max int) []T {
 	if len(input) <= max {
 		return input
