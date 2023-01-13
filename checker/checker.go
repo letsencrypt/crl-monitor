@@ -8,6 +8,7 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 
 const (
 	BoulderBaseURL    cmd.EnvVar = "BOULDER_BASE_URL"
+	BoulderMaxFetch   cmd.EnvVar = "BOULDER_MAX_FETCH"
 	DynamoEndpointEnv cmd.EnvVar = "DYNAMO_ENDPOINT"
 	DynamoTableEnv    cmd.EnvVar = "DYNAMO_TABLE"
 	CRLAgeLimit       cmd.EnvVar = "CRL_AGE_LIMIT"
@@ -39,7 +41,7 @@ func nameID(issuer *x509.Certificate) string {
 	return fmt.Sprintf("%d", big.NewInt(0).SetBytes(s[:7]))
 }
 
-func New(database *db.Database, storage *storage.Storage, fetcher earlyremoval.Fetcher, ageLimit time.Duration, issuers []*x509.Certificate) *Checker {
+func New(database *db.Database, storage *storage.Storage, fetcher earlyremoval.Fetcher, maxFetch int, ageLimit time.Duration, issuers []*x509.Certificate) *Checker {
 	issuerMap := make(map[string]*x509.Certificate, len(issuers))
 	for _, issuer := range issuers {
 		issuerMap[nameID(issuer)] = issuer
@@ -49,21 +51,31 @@ func New(database *db.Database, storage *storage.Storage, fetcher earlyremoval.F
 		db:       database,
 		storage:  storage,
 		fetcher:  fetcher,
+		maxFetch: maxFetch,
 		ageLimit: ageLimit,
 		issuers:  issuerMap,
 	}
 }
 
 func NewFromEnv(ctx context.Context) (*Checker, error) {
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("creating AWS config: %w", err)
+	}
+
 	boulderBaseURL := BoulderBaseURL.MustRead("Boulder endpoint to fetch certificates from")
 	dynamoTable := DynamoTableEnv.MustRead("DynamoDB table name")
 	dynamoEndpoint, customEndpoint := DynamoEndpointEnv.LookupEnv()
 	crlAgeLimit, hasAgeLimit := CRLAgeLimit.LookupEnv()
 	issuerPaths := IssuerPaths.MustRead("Colon (:) separated list of paths to PEM-formatted CRL issuer certificates")
 
-	cfg, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("creating AWS config: %w", err)
+	maxFetch := 0
+	maxFetchString, hasMaxFetch := BoulderMaxFetch.LookupEnv()
+	if hasMaxFetch {
+		maxFetch, err = strconv.Atoi(maxFetchString)
+		if err != nil {
+			return nil, fmt.Errorf("parsing %s as int (%s): %v", BoulderMaxFetch, maxFetchString, err)
+		}
 	}
 
 	if customEndpoint {
@@ -98,7 +110,7 @@ func NewFromEnv(ctx context.Context) (*Checker, error) {
 		issuers = append(issuers, issuer)
 	}
 
-	return New(database, storage.New(cfg), &baf, ageLimitDuration, issuers), nil
+	return New(database, storage.New(cfg), &baf, maxFetch, ageLimitDuration, issuers), nil
 }
 
 // The Checker handles fetching and linting CRLs.
@@ -107,6 +119,7 @@ type Checker struct {
 	db       *db.Database
 	storage  *storage.Storage
 	fetcher  earlyremoval.Fetcher
+	maxFetch int
 	ageLimit time.Duration
 	issuers  map[string]*x509.Certificate
 }
@@ -154,7 +167,7 @@ func (c *Checker) Check(ctx context.Context, bucket, object string, startingVers
 	}
 	log.Printf("loaded previous CRL number %d (len %d) from version %s", prev.Number, len(prev.RevokedCertificates), prevVersion)
 
-	earlyRemoved, err := earlyremoval.Check(ctx, c.fetcher, prev, crl)
+	earlyRemoved, err := earlyremoval.Check(ctx, c.fetcher, c.maxFetch, prev, crl)
 	if err != nil {
 		return fmt.Errorf("failed to check for early removal: %v", err)
 	}
