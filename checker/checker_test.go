@@ -66,6 +66,7 @@ func TestCheck(t *testing.T) {
 		dbmock.NewMockedDB(t),
 		storagemock.New(t, bucket, data),
 		&fetcher,
+		0,
 		24*time.Hour,
 		[]*x509.Certificate{issuer},
 	)
