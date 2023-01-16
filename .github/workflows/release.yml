@@ -1,0 +1,15 @@
+# Run the release flow
+# Keep in sync with try-release.yml
+
+name: Run release
+on:
+  push:
+    tags:
+      - v*
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./build-release.sh
