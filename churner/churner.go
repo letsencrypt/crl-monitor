@@ -119,6 +119,10 @@ func (c *Churner) RegisterAccount(ctx context.Context) error {
 	}
 
 	c.acmeAccount = account
+
+	// Account creation isn't immediately consistent across all DCs.
+	// Sleep 2 seconds to avoid any potential problems.
+	time.Sleep(2 * time.Second)
 	return nil
 }
 
