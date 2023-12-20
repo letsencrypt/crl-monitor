@@ -70,7 +70,7 @@ func (s *Storage) Previous(ctx context.Context, bucket, object, version string) 
 		}
 	}
 
-	if (!found || prevVersion == nil) && resp.IsTruncated {
+	if (!found || prevVersion == nil) && resp.IsTruncated != nil && *resp.IsTruncated {
 		return "", fmt.Errorf("too many versions and pagination not implemented! %s %s %s", bucket, object, version)
 	}
 
