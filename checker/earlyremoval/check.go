@@ -2,13 +2,13 @@ package earlyremoval
 
 import (
 	"context"
+	"crypto/x509"
 	"log"
 	"math/big"
 	"math/rand"
 	"time"
 
 	"github.com/letsencrypt/boulder/crl/checker"
-	"github.com/letsencrypt/boulder/crl/crl_x509"
 )
 
 type Fetcher interface {
@@ -52,7 +52,7 @@ func sample[T any](input []T, max int) []T {
 }
 
 // Check for early removal.  If maxFetch is greater than 0, only check that many serials
-func Check(ctx context.Context, fetcher Fetcher, maxFetch int, prev *crl_x509.RevocationList, crl *crl_x509.RevocationList) ([]EarlyRemoval, error) {
+func Check(ctx context.Context, fetcher Fetcher, maxFetch int, prev *x509.RevocationList, crl *x509.RevocationList) ([]EarlyRemoval, error) {
 	diff, err := checker.Diff(prev, crl)
 	if err != nil {
 		return nil, err
