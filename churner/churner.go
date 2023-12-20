@@ -92,7 +92,7 @@ func NewFromEnv(ctx context.Context) (*Churner, error) {
 	}
 
 	if customEndpoint {
-		cfg.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(db.StaticResolver(dynamoEndpoint))
+		cfg.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(db.StaticResolver(dynamoEndpoint)) // nolint:staticcheck // SA1019
 	}
 
 	database, err := db.New(dynamoTable, &cfg)

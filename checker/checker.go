@@ -18,6 +18,7 @@ import (
 	"github.com/letsencrypt/boulder/core"
 	"github.com/letsencrypt/boulder/crl/checker"
 	"github.com/letsencrypt/boulder/crl/crl_x509"
+
 	"github.com/letsencrypt/crl-monitor/checker/earlyremoval"
 	"github.com/letsencrypt/crl-monitor/checker/expiry"
 	"github.com/letsencrypt/crl-monitor/cmd"
@@ -79,7 +80,7 @@ func NewFromEnv(ctx context.Context) (*Checker, error) {
 	}
 
 	if customEndpoint {
-		cfg.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(db.StaticResolver(dynamoEndpoint))
+		cfg.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(db.StaticResolver(dynamoEndpoint)) // nolint:staticcheck // SA1019
 	}
 
 	database, err := db.New(dynamoTable, &cfg)
