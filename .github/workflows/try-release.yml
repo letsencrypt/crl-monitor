@@ -1,0 +1,19 @@
+# Try the release flow to ensure it works
+# Keep in sync with release.yml
+
+name: Try release
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  try-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v4
+        with:
+          go-version: 1.21
+      - run: ./build-release.sh
