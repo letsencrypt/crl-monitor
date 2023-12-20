@@ -17,7 +17,6 @@ import (
 
 	"github.com/letsencrypt/boulder/core"
 	"github.com/letsencrypt/boulder/crl/checker"
-	"github.com/letsencrypt/boulder/crl/crl_x509"
 
 	"github.com/letsencrypt/crl-monitor/checker/earlyremoval"
 	"github.com/letsencrypt/crl-monitor/checker/expiry"
@@ -134,11 +133,11 @@ func (c *Checker) Check(ctx context.Context, bucket, object string, startingVers
 		return err
 	}
 
-	crl, err := crl_x509.ParseRevocationList(crlDER)
+	crl, err := x509.ParseRevocationList(crlDER)
 	if err != nil {
 		return fmt.Errorf("error parsing current crl: %v", err)
 	}
-	log.Printf("loaded CRL number %d (len %d) from %s version %s", crl.Number, len(crl.RevokedCertificates), object, version)
+	log.Printf("loaded CRL number %d (len %d) from %s version %s", crl.Number, len(crl.RevokedCertificateEntries), object, version)
 
 	issuer, err := c.issuerForObject(object)
 	if err != nil {
@@ -162,11 +161,11 @@ func (c *Checker) Check(ctx context.Context, bucket, object string, startingVers
 		return err
 	}
 
-	prev, err := crl_x509.ParseRevocationList(prevDER)
+	prev, err := x509.ParseRevocationList(prevDER)
 	if err != nil {
 		return fmt.Errorf("error parsing previous crl: %v", err)
 	}
-	log.Printf("loaded previous CRL number %d (len %d) from version %s", prev.Number, len(prev.RevokedCertificates), prevVersion)
+	log.Printf("loaded previous CRL number %d (len %d) from version %s", prev.Number, len(prev.RevokedCertificateEntries), prevVersion)
 
 	earlyRemoved, err := earlyremoval.Check(ctx, c.fetcher, c.maxFetch, prev, crl)
 	if err != nil {
@@ -188,13 +187,13 @@ func (c *Checker) Check(ctx context.Context, bucket, object string, startingVers
 
 // lookForSeenCerts removes any certs in this CRL from the database, as they've now appeared in a CRL.
 // We expect the database to be much smaller than CRLs, so we load the entire database into memory.
-func (c *Checker) lookForSeenCerts(ctx context.Context, crl *crl_x509.RevocationList) error {
+func (c *Checker) lookForSeenCerts(ctx context.Context, crl *x509.RevocationList) error {
 	unseenCerts, err := c.db.GetAllCerts(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to read from db: %v", err)
 	}
 	var seenSerials [][]byte
-	for _, seen := range crl.RevokedCertificates {
+	for _, seen := range crl.RevokedCertificateEntries {
 		if metadata, ok := unseenCerts[db.NewCertKey(seen.SerialNumber).SerialString()]; ok {
 			seenSerials = append(seenSerials, metadata.SerialNumber)
 		}

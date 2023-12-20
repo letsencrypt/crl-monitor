@@ -13,18 +13,16 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/letsencrypt/boulder/crl/crl_x509"
 )
 
 var Now = time.Now()
 
 // CRL1 is the start of a series of CRLs for testing, starting with 3 serials
-var CRL1 = crl_x509.RevocationList{
+var CRL1 = x509.RevocationList{
 	ThisUpdate: Now,
 	NextUpdate: Now.Add(24 * time.Hour),
 	Number:     big.NewInt(1),
-	RevokedCertificates: []crl_x509.RevokedCertificate{
+	RevokedCertificateEntries: []x509.RevocationListEntry{
 		{SerialNumber: big.NewInt(1), RevocationTime: Now},
 		{SerialNumber: big.NewInt(2), RevocationTime: Now},
 		{SerialNumber: big.NewInt(3), RevocationTime: Now},
@@ -32,11 +30,11 @@ var CRL1 = crl_x509.RevocationList{
 }
 
 // CRL2 has the same 3 serials as CRL1
-var CRL2 = crl_x509.RevocationList{
+var CRL2 = x509.RevocationList{
 	ThisUpdate: Now.Add(2 * time.Hour),
 	NextUpdate: Now.Add(24 * time.Hour),
 	Number:     big.NewInt(2),
-	RevokedCertificates: []crl_x509.RevokedCertificate{
+	RevokedCertificateEntries: []x509.RevocationListEntry{
 		{SerialNumber: big.NewInt(1), RevocationTime: Now},
 		{SerialNumber: big.NewInt(2), RevocationTime: Now},
 		{SerialNumber: big.NewInt(3), RevocationTime: Now},
@@ -44,32 +42,32 @@ var CRL2 = crl_x509.RevocationList{
 }
 
 // CRL3 removes the first cert correctly: It was expired in CRL 2
-var CRL3 = crl_x509.RevocationList{
+var CRL3 = x509.RevocationList{
 	ThisUpdate: Now.Add(3 * time.Hour),
 	NextUpdate: Now.Add(24 * time.Hour),
 	Number:     big.NewInt(3),
-	RevokedCertificates: []crl_x509.RevokedCertificate{
+	RevokedCertificateEntries: []x509.RevocationListEntry{
 		{SerialNumber: big.NewInt(2), RevocationTime: Now},
 		{SerialNumber: big.NewInt(3), RevocationTime: Now},
 	},
 }
 
 // CRL4 incorrectly removes serial 2, which has expired after CRL 3
-var CRL4 = crl_x509.RevocationList{
+var CRL4 = x509.RevocationList{
 	ThisUpdate: Now.Add(4 * time.Hour),
 	NextUpdate: Now.Add(24 * time.Hour),
 	Number:     big.NewInt(4),
-	RevokedCertificates: []crl_x509.RevokedCertificate{
+	RevokedCertificateEntries: []x509.RevocationListEntry{
 		{SerialNumber: big.NewInt(3), RevocationTime: Now},
 	},
 }
 
 // CRL5 removes a cert our mock fetcher doesn't know about
-var CRL5 = crl_x509.RevocationList{
-	ThisUpdate:          Now.Add(5 * time.Hour),
-	NextUpdate:          Now.Add(24 * time.Hour),
-	Number:              big.NewInt(5),
-	RevokedCertificates: nil,
+var CRL5 = x509.RevocationList{
+	ThisUpdate:                Now.Add(5 * time.Hour),
+	NextUpdate:                Now.Add(24 * time.Hour),
+	Number:                    big.NewInt(5),
+	RevokedCertificateEntries: nil,
 }
 
 func MakeIssuer(t *testing.T) (*x509.Certificate, crypto.Signer) {
@@ -93,12 +91,12 @@ func MakeIssuer(t *testing.T) (*x509.Certificate, crypto.Signer) {
 }
 
 // MakeCRL takes a revocation list and issuer to sign it.  It returns a DER encoded CRL.
-func MakeCRL(t *testing.T, input *crl_x509.RevocationList, idp string, issuer *x509.Certificate, key crypto.Signer) []byte {
+func MakeCRL(t *testing.T, input *x509.RevocationList, idp string, issuer *x509.Certificate, key crypto.Signer) []byte {
 	ext, err := makeIDPExt(idp)
 	require.NoError(t, err)
 
 	input.ExtraExtensions = append(input.ExtraExtensions, *ext)
-	der, err := crl_x509.CreateRevocationList(rand.Reader, input, issuer, key)
+	der, err := x509.CreateRevocationList(rand.Reader, input, issuer, key)
 	require.NoError(t, err)
 	return der
 }

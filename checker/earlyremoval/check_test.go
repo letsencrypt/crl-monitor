@@ -2,6 +2,7 @@ package earlyremoval
 
 import (
 	"context"
+	"crypto/x509"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/letsencrypt/boulder/crl/crl_x509"
 	"github.com/letsencrypt/crl-monitor/checker/expiry/mock"
 	"github.com/letsencrypt/crl-monitor/checker/testdata"
 )
@@ -26,8 +26,8 @@ func TestCheck(t *testing.T) {
 
 	for _, tt := range []struct {
 		name     string
-		prev     *crl_x509.RevocationList
-		crl      *crl_x509.RevocationList
+		prev     *x509.RevocationList
+		crl      *x509.RevocationList
 		expected []EarlyRemoval
 	}{
 		{name: "no removals", prev: &testdata.CRL1, crl: &testdata.CRL2},
@@ -49,8 +49,8 @@ func TestCheck(t *testing.T) {
 
 	for _, tt := range []struct {
 		expectedError string
-		prev          *crl_x509.RevocationList
-		crl           *crl_x509.RevocationList
+		prev          *x509.RevocationList
+		crl           *x509.RevocationList
 	}{
 		{expectedError: "unknown serial 3", prev: &testdata.CRL4, crl: &testdata.CRL5},
 		{expectedError: "old CRL does not precede new CRL", prev: &testdata.CRL2, crl: &testdata.CRL1},

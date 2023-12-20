@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/letsencrypt/boulder/core"
+
 	expirymock "github.com/letsencrypt/crl-monitor/checker/expiry/mock"
 	"github.com/letsencrypt/crl-monitor/checker/testdata"
 	"github.com/letsencrypt/crl-monitor/db"
@@ -74,7 +75,7 @@ func TestCheck(t *testing.T) {
 	ctx := context.Background()
 
 	// Watch the first revoked cert's serial
-	serial := testdata.CRL1.RevokedCertificates[0].SerialNumber
+	serial := testdata.CRL1.RevokedCertificateEntries[0].SerialNumber
 	require.NoError(t, checker.db.AddCert(ctx, &x509.Certificate{SerialNumber: serial}, testdata.Now))
 	shouldNotBeSeen := big.NewInt(12345)
 	require.NoError(t, checker.db.AddCert(ctx, &x509.Certificate{SerialNumber: shouldNotBeSeen}, testdata.Now))
