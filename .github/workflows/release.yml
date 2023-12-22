@@ -8,6 +8,7 @@ on:
       - v*
 
 permissions:
+  contents: read
   id-token: write # Needed to request JWT for OIDC
 
 jobs:
@@ -20,7 +21,7 @@ jobs:
           go-version: 1.21
       - run: ./build-release.sh
       # Upload to S3:
-      - uses: aws-actions/configure-aws-credentials@v3
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::338276578713:role/crl-monitor-github-action-role
           aws-region: us-west-2
