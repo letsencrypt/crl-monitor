@@ -16,7 +16,6 @@ require (
 	github.com/libdns/route53 v1.3.3
 	github.com/mholt/acmez v1.2.0
 	github.com/stretchr/testify v1.8.4
-	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.26.0
 )
 
@@ -51,6 +50,7 @@ require (
 	github.com/zeebo/blake3 v0.2.3 // indirect
 	github.com/zmap/zcrypto v0.0.0-20230310154051-c8b263fd8300 // indirect
 	github.com/zmap/zlint/v3 v3.5.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.17.0 // indirect
 	golang.org/x/mod v0.14.0 // indirect
 	golang.org/x/net v0.19.0 // indirect

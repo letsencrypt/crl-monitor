@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"go.uber.org/multierr"
 
 	"github.com/letsencrypt/crl-monitor/checker"
 )
@@ -16,7 +16,7 @@ func HandleRequest(c *checker.Checker) func(ctx context.Context, event events.S3
 		var err error
 		for _, record := range event.Records {
 			record := record
-			err = multierr.Append(err, c.Check(ctx, record.S3.Bucket.Name, record.S3.Object.Key, &record.S3.Object.VersionID))
+			err = errors.Join(err, c.Check(ctx, record.S3.Bucket.Name, record.S3.Object.Key, &record.S3.Object.VersionID))
 		}
 		return err
 	}
