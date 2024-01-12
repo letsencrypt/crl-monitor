@@ -2,6 +2,7 @@ package churner
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -126,6 +127,21 @@ func (c *Churner) RegisterAccount(ctx context.Context) error {
 	return nil
 }
 
+func (c *Churner) retryObtain(ctx context.Context, certPrivateKey crypto.Signer, sans []string) ([]acme.Certificate, error) {
+	var err error
+	var certificates []acme.Certificate
+	for retry := 0; retry < 5; retry++ {
+		certificates, err = c.acmeClient.ObtainCertificate(ctx, c.acmeAccount, certPrivateKey, sans)
+		if err != nil {
+			log.Printf("error obtaining certificate on retry %d: %v", retry, err)
+			time.Sleep(time.Second)
+			continue
+		}
+		return certificates, nil
+	}
+	return nil, err
+}
+
 // Churn issues a certificate, revokes it, and stores the result in DynamoDB
 func (c *Churner) Churn(ctx context.Context) error {
 	// Generate either an ecdsa or rsa private key
@@ -134,7 +150,7 @@ func (c *Churner) Churn(ctx context.Context) error {
 		return err
 	}
 
-	certificates, err := c.acmeClient.ObtainCertificate(ctx, c.acmeAccount, certPrivateKey, randDomains(c.baseDomain))
+	certificates, err := c.retryObtain(ctx, certPrivateKey, randDomains(c.baseDomain))
 	if err != nil {
 		return err
 	}
