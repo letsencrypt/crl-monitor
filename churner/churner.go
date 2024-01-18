@@ -12,8 +12,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/caddyserver/certmagic"
 	"github.com/libdns/route53"
 	"github.com/mholt/acmez"
@@ -78,7 +76,7 @@ func NewFromEnv(ctx context.Context) (*Churner, error) {
 	baseDomain := BaseDomainEnv.MustRead("Base domain to issue certificates under")
 	acmeDirectory := ACMEDirectoryEnv.MustRead("ACME directory URL")
 	dynamoTable := DynamoTableEnv.MustRead("DynamoDB table name")
-	dynamoEndpoint, customEndpoint := DynamoEndpointEnv.LookupEnv()
+	dynamoEndpoint, _ := DynamoEndpointEnv.LookupEnv()
 
 	revokeDeadline, err := time.ParseDuration(RevokeDeadline.MustRead("Deadline for revoked certs to appear in CRL, as a duration before the current time"))
 	if err != nil {
@@ -87,16 +85,7 @@ func NewFromEnv(ctx context.Context) (*Churner, error) {
 
 	cutoff := time.Now().Add(-1 * revokeDeadline)
 
-	cfg, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		log.Fatalf("Error creating AWS config: %v", err)
-	}
-
-	if customEndpoint {
-		cfg.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(db.StaticResolver(dynamoEndpoint)) // nolint:staticcheck // SA1019
-	}
-
-	database, err := db.New(dynamoTable, &cfg)
+	database, err := db.New(ctx, dynamoTable, dynamoEndpoint)
 	if err != nil {
 		log.Fatalf("Error in database setup: %v", err)
 	}
