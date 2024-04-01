@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
@@ -19,8 +20,13 @@ type Storage struct {
 	S3Client s3client
 }
 
-func New(awsConfig aws.Config) *Storage {
-	s3Client := s3.NewFromConfig(awsConfig)
+func New(ctx context.Context) *Storage {
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		log.Fatalf("Error creating AWS config: %v", err)
+	}
+
+	s3Client := s3.NewFromConfig(cfg)
 	return &Storage{S3Client: s3Client}
 }
 

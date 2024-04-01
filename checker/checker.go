@@ -12,9 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-
 	"github.com/letsencrypt/boulder/core"
 	"github.com/letsencrypt/boulder/crl/checker"
 
@@ -58,31 +55,23 @@ func New(database *db.Database, storage *storage.Storage, fetcher earlyremoval.F
 }
 
 func NewFromEnv(ctx context.Context) (*Checker, error) {
-	cfg, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("creating AWS config: %w", err)
-	}
-
 	boulderBaseURL := BoulderBaseURL.MustRead("Boulder endpoint to fetch certificates from")
 	dynamoTable := DynamoTableEnv.MustRead("DynamoDB table name")
-	dynamoEndpoint, customEndpoint := DynamoEndpointEnv.LookupEnv()
+	dynamoEndpoint, _ := DynamoEndpointEnv.LookupEnv()
 	crlAgeLimit, hasAgeLimit := CRLAgeLimit.LookupEnv()
 	issuerPaths := IssuerPaths.MustRead("Colon (:) separated list of paths to PEM-formatted CRL issuer certificates")
 
 	maxFetch := 0
 	maxFetchString, hasMaxFetch := BoulderMaxFetch.LookupEnv()
 	if hasMaxFetch {
+		var err error
 		maxFetch, err = strconv.Atoi(maxFetchString)
 		if err != nil {
 			return nil, fmt.Errorf("parsing %s as int (%s): %v", BoulderMaxFetch, maxFetchString, err)
 		}
 	}
 
-	if customEndpoint {
-		cfg.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(db.StaticResolver(dynamoEndpoint)) // nolint:staticcheck // SA1019
-	}
-
-	database, err := db.New(dynamoTable, &cfg)
+	database, err := db.New(ctx, dynamoTable, dynamoEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("database setup: %w", err)
 	}
@@ -110,7 +99,7 @@ func NewFromEnv(ctx context.Context) (*Checker, error) {
 		issuers = append(issuers, issuer)
 	}
 
-	return New(database, storage.New(cfg), &baf, maxFetch, ageLimitDuration, issuers), nil
+	return New(database, storage.New(ctx), &baf, maxFetch, ageLimitDuration, issuers), nil
 }
 
 // The Checker handles fetching and linting CRLs.

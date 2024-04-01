@@ -4,10 +4,12 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
+	"log"
 	"math/big"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -25,10 +27,19 @@ type Database struct {
 	Dynamo ddb
 }
 
-func New(table string, cfg *aws.Config) (*Database, error) {
+func New(ctx context.Context, table, dynamoEndpoint string) (*Database, error) {
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		log.Fatalf("Error creating AWS config: %v", err)
+	}
+
 	return &Database{
-		Table:  table,
-		Dynamo: dynamodb.NewFromConfig(*cfg),
+		Table: table,
+		Dynamo: dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
+			if dynamoEndpoint != "" {
+				o.BaseEndpoint = aws.String(dynamoEndpoint)
+			}
+		}),
 	}, nil
 }
 
