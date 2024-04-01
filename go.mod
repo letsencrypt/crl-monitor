@@ -1,8 +1,8 @@
 module github.com/letsencrypt/crl-monitor
 
-go 1.21
+go 1.22
 
-toolchain go1.21.4
+toolchain go1.22.1
 
 require (
 	github.com/aws/aws-lambda-go v1.43.0
