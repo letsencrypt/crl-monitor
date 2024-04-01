@@ -36,7 +36,7 @@ func New(ctx context.Context, table, dynamoEndpoint string) (*Database, error) {
 	return &Database{
 		Table: table,
 		Dynamo: dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
-			if dynamoEndpoint == "" {
+			if dynamoEndpoint != "" {
 				o.BaseEndpoint = aws.String(dynamoEndpoint)
 			}
 		}),
