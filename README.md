@@ -31,10 +31,10 @@ sequenceDiagram
     checker->>s3: Read current CRL
     checker->>s3: Read previous CRL
     Note over checker: Alert if CRL<br />fails linting
-    loop all removed serials
+    loop random selection of serials
       checker->>ca: Get Certificate
     end
-    Note over checker: Alert if CRL had any<br />serials leave early
+    Note over checker: Alert if CRL had<br />serials leave early
     checker->>ddb: Get revoked serials
     checker->>ddb: Delete seen serials
     deactivate checker
