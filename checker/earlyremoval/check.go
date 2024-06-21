@@ -5,7 +5,7 @@ import (
 	"crypto/x509"
 	"log"
 	"math/big"
-	"math/rand"
+	"math/rand/v2"
 	"time"
 
 	"github.com/letsencrypt/boulder/crl/checker"

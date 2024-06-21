@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"math/big"
-	"math/rand"
+	"math/rand/v2"
 	"testing"
 	"time"
 
@@ -70,7 +70,7 @@ func TestSample(t *testing.T) {
 	var data []int
 	// Generate a random array for tests.  Insecure RNG is fine.
 	// #nosec G404
-	length := 100 + rand.Intn(300)
+	length := 100 + rand.IntN(300)
 	for i := 0; i < length; i++ {
 		data = append(data, i)
 	}

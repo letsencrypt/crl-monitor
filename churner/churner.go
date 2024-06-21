@@ -6,10 +6,12 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	"log"
+	mathrand "math/rand/v2"
 	"time"
 
 	"github.com/caddyserver/certmagic"
@@ -133,8 +135,7 @@ func (c *Churner) retryObtain(ctx context.Context, certPrivateKey crypto.Signer,
 
 // Churn issues a certificate, revokes it, and stores the result in DynamoDB
 func (c *Churner) Churn(ctx context.Context) error {
-	// Generate either an ecdsa or rsa private key
-	certPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	certPrivateKey, err := randomKey()
 	if err != nil {
 		return err
 	}
@@ -161,16 +162,19 @@ func (c *Churner) Churn(ctx context.Context) error {
 	return c.db.AddCert(ctx, cert, time.Now())
 }
 
+// randomKey generates either an ecdsa or rsa private key
+func randomKey() (crypto.Signer, error) {
+	if mathrand.IntN(2) == 0 {
+		return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	} else {
+		return rsa.GenerateKey(rand.Reader, 2048)
+	}
+}
+
 // randDomains picks the domains to include on the certificate.
 // We put a single domain which includes the current time and a random value.
 func randDomains(baseDomain string) []string {
-	randomSuffix := make([]byte, 2)
-	_, err := rand.Read(randomSuffix)
-	if err != nil {
-		// Something has to go terribly wrong for this
-		panic(fmt.Sprintf("random read failed: %v", err))
-	}
-	domain := fmt.Sprintf("r%dz%x.%s", time.Now().Unix(), randomSuffix, baseDomain)
+	domain := fmt.Sprintf("r%dZ%x.%s", time.Now().Unix(), mathrand.Uint32(), baseDomain)
 	return []string{domain}
 }
 
