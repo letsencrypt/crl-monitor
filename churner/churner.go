@@ -164,7 +164,6 @@ func (c *Churner) Churn(ctx context.Context) error {
 
 // randomKey generates either an ecdsa or rsa private key
 func randomKey() (crypto.Signer, error) {
-	// #nosec G404
 	if mathrand.IntN(2) == 0 {
 		return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	} else {
@@ -175,7 +174,6 @@ func randomKey() (crypto.Signer, error) {
 // randDomains picks the domains to include on the certificate.
 // We put a single domain which includes the current time and a random value.
 func randDomains(baseDomain string) []string {
-	// #nosec G404
 	domain := fmt.Sprintf("r%dZ%x.%s", time.Now().Unix(), mathrand.Uint32(), baseDomain)
 	return []string{domain}
 }

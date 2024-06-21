@@ -68,8 +68,7 @@ func TestSample(t *testing.T) {
 	require.Empty(t, sample([]int{}, 999))
 
 	var data []int
-	// Generate a random array for tests.  Insecure RNG is fine.
-	// #nosec G404
+	// Generate a random array for tests.
 	length := 100 + rand.IntN(300)
 	for i := 0; i < length; i++ {
 		data = append(data, i)
