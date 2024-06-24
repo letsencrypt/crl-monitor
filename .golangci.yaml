@@ -15,5 +15,6 @@ linters:
     - unused
     - wastedassign
 linters-settings:
-  errcheck:
-    ignore: fmt:[FS]?[Pp]rint*,io:Write,os:Remove,net/http:Write,net:Write,encoding/binary:Write
+  gosec:
+    excludes:
+      - G404
