@@ -23,7 +23,7 @@ func TestIntegrationDynamoDB(t *testing.T) {
 	cfg.Credentials = aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
 		return aws.Credentials{AccessKeyID: "Bogus", SecretAccessKey: "Bogus"}, nil
 	})
-	handle, err := db.New("unseen-certificates", cfg)
+	handle, err := db.New(context.Background(), "unseen-certificates", "http://localhost:8000")
 	require.NoError(t, err)
 
 	smoketest(t, handle)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -68,4 +69,58 @@ func smoketest(t *testing.T, handle *db.Database) {
 		"000000000000000000000000000000093f6c": {CertKey: db.CertKey{SerialNumber: int60s.Bytes()}, RevocationTime: ts2},
 	}
 	require.Equal(t, expected, remaining)
+}
+
+func TestAddCertCRLDP(t *testing.T) {
+	handle := mock.NewMockedDB(t)
+	ctx := context.Background()
+
+	revocationTime := time.Now().Add(100 * time.Hour)
+
+	int111 := big.NewInt(111)
+	int4s := big.NewInt(444444)
+	int60s := big.NewInt(606060)
+
+	err := handle.AddCert(ctx, &x509.Certificate{
+		SerialNumber: int111,
+	}, revocationTime)
+	if err != nil {
+		t.Errorf("inserting plain cert: %s", err)
+	}
+
+	err = handle.AddCert(ctx, &x509.Certificate{
+		SerialNumber: int4s,
+		CRLDistributionPoints: []string{
+			"http://example.com/crl",
+			"http://example.net/crl",
+		},
+	}, revocationTime)
+	if err == nil {
+		t.Errorf("inserting cert with two CRLDistributionPoints: got success, want error")
+	}
+
+	err = handle.AddCert(ctx, &x509.Certificate{
+		SerialNumber: int60s,
+		CRLDistributionPoints: []string{
+			"http://example.com/crl",
+		},
+	}, revocationTime)
+	if err != nil {
+		t.Errorf("inserting cert with one CRLDistributionPoint: %s", err)
+	}
+
+	results, err := handle.GetAllCerts(ctx)
+	if err != nil {
+		t.Fatalf("getting all certs: %s", err)
+	}
+
+	serialString := fmt.Sprintf("%036x", int60s)
+	metadata, ok := results[serialString]
+	if !ok {
+		t.Errorf("getting all certs: expected entry for %s, got %+v", serialString, metadata)
+	}
+
+	if metadata.CRLDistributionPoint != "http://example.com/crl" {
+		t.Errorf("CRL for %s = %q, want %q", serialString, metadata.CRLDistributionPoint, "http://example.com/crl")
+	}
 }

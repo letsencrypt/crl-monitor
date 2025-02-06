@@ -47,7 +47,8 @@ func New(ctx context.Context, table, dynamoEndpoint string) (*Database, error) {
 // That is the CertKey plus the revocation time today.
 type CertMetadata struct {
 	CertKey
-	RevocationTime time.Time `dynamodbav:"RT,unixtime"`
+	RevocationTime       time.Time `dynamodbav:"RT,unixtime"`
+	CRLDistributionPoint string    `dynamodbav:"DP,string"`
 }
 
 // CertKey is the DynamoDB primary key, which is the serial number.
@@ -67,9 +68,19 @@ func (ck CertKey) SerialString() string {
 
 // AddCert inserts the metadata for monitoring
 func (db *Database) AddCert(ctx context.Context, certificate *x509.Certificate, revocationTime time.Time) error {
+	var crlDistributionPoint string
+	// TODO: Once all issued certificates have a CRLDistributionPoint, error out when
+	// the extension is absent.
+	if len(certificate.CRLDistributionPoints) > 0 {
+		crlDistributionPoint = certificate.CRLDistributionPoints[0]
+	}
+	if len(certificate.CRLDistributionPoints) > 1 {
+		return fmt.Errorf("too many CRLDistributionPoints in certificate: %d", len(certificate.CRLDistributionPoints))
+	}
 	item, err := attributevalue.MarshalMap(CertMetadata{
-		CertKey:        NewCertKey(certificate.SerialNumber),
-		RevocationTime: revocationTime,
+		CertKey:              NewCertKey(certificate.SerialNumber),
+		RevocationTime:       revocationTime,
+		CRLDistributionPoint: crlDistributionPoint,
 	})
 	if err != nil {
 		return err
