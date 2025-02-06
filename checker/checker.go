@@ -19,6 +19,7 @@ import (
 	"github.com/letsencrypt/crl-monitor/checker/expiry"
 	"github.com/letsencrypt/crl-monitor/cmd"
 	"github.com/letsencrypt/crl-monitor/db"
+	"github.com/letsencrypt/crl-monitor/retryhttp"
 	"github.com/letsencrypt/crl-monitor/storage"
 )
 
@@ -77,7 +78,7 @@ func NewFromEnv(ctx context.Context) (*Checker, error) {
 	}
 
 	baf := expiry.BoulderAPIFetcher{
-		Client:  http.DefaultClient,
+		Client:  retryhttp.New(http.DefaultClient),
 		BaseURL: boulderBaseURL,
 	}
 

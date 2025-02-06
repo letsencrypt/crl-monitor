@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 	mathrand "math/rand/v2"
+	"net/http"
 	"time"
 
 	"github.com/caddyserver/certmagic"
@@ -20,8 +21,10 @@ import (
 	"github.com/mholt/acmez/acme"
 	"go.uber.org/zap"
 
+	"github.com/letsencrypt/boulder/crl/checker"
 	"github.com/letsencrypt/crl-monitor/cmd"
 	"github.com/letsencrypt/crl-monitor/db"
+	"github.com/letsencrypt/crl-monitor/retryhttp"
 )
 
 const (
@@ -145,13 +148,38 @@ func (c *Churner) Churn(ctx context.Context) error {
 		return err
 	}
 
-	// certificates contains all the possible cert chains.  We only care about
-	// the cert, so we just take the first one and parse it.
+	// certificates contains all the possible cert chains.  We don't
+	// care about alternate chains, but we do care about getting
+	// the parent of the certificate we just got, so we can validate its CRL.
 	firstChain := certificates[0].ChainPEM
-	block, _ := pem.Decode(firstChain)
+	block, remaining := pem.Decode(firstChain)
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
 		return err
+	}
+	block, _ = pem.Decode(remaining)
+	issuer, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return err
+	}
+
+	// If the certificate has any CRLDistributionPoints, check that they can be fetched,
+	// parsed, verified, and linted. We don't try to check for revocation at this stage
+	// because it may be several hours before a new CRL is uploaded that reflects the
+	// revocation we're about to do.
+	client := retryhttp.New(http.DefaultClient)
+	for _, url := range cert.CRLDistributionPoints {
+		body, err := client.GetWithRetries(ctx, url)
+		if err != nil {
+			return fmt.Errorf("fetching CRL %q from CRLDistributionPoint of certificate %036x: %s",
+				url, cert.SerialNumber, err)
+		}
+		crl, err := x509.ParseRevocationList(body)
+		if err != nil {
+			return fmt.Errorf("fetching CRL %q from CRLDistributionPoint of certificate %036x: %s",
+				url, cert.SerialNumber, err)
+		}
+		checker.Validate(crl, issuer, 24*time.Hour)
 	}
 
 	err = c.acmeClient.RevokeCertificate(ctx, c.acmeAccount, cert, c.acmeAccount.PrivateKey, acme.ReasonCessationOfOperation)
