@@ -181,7 +181,7 @@ func randomKey() (crypto.Signer, error) {
 // randDomains picks the domains to include on the certificate.
 // We put a single domain which includes the current time and a random value.
 func randDomains(baseDomain string) []string {
-	domain := fmt.Sprintf("r%dZ%x.%s", time.Now().Unix(), mathrand.Uint32(), baseDomain)
+	domain := fmt.Sprintf("r%dz%x.%s", time.Now().Unix(), mathrand.Uint32(), baseDomain)
 	return []string{domain}
 }
 
