@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"log"
 	"math/big"
@@ -188,15 +189,18 @@ func (c *Checker) lookForSeenCerts(ctx context.Context, crl *x509.RevocationList
 		return fmt.Errorf("failed to read from db: %v", err)
 	}
 	var seenSerials [][]byte
+	var errs []error
 	for _, seen := range crl.RevokedCertificateEntries {
 		if metadata, ok := unseenCerts[db.NewCertKey(seen.SerialNumber).SerialString()]; ok {
 			idp, err := getIDP(crl)
 			if err != nil {
-				return err
+				errs = append(errs, err)
+				continue
 			}
 			if metadata.CRLDistributionPoint != "" && metadata.CRLDistributionPoint != idp {
-				return fmt.Errorf("cert %x on CRL %q has CRLDistributionPoint %q",
-					seen.SerialNumber, idp, metadata.CRLDistributionPoint)
+				errs = append(errs, fmt.Errorf("cert %x on CRL %q has non-matching CRLDistributionPoint %q",
+					seen.SerialNumber, idp, metadata.CRLDistributionPoint))
+				continue
 			}
 			seenSerials = append(seenSerials, metadata.SerialNumber)
 		}
@@ -206,7 +210,7 @@ func (c *Checker) lookForSeenCerts(ctx context.Context, crl *x509.RevocationList
 	if err != nil {
 		return fmt.Errorf("failed to delete from db: %v", err)
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // issuerForObject takes an s3 object path, extracts the issuer prefix, and returns the right x509.Certificate

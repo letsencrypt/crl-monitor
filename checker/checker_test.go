@@ -115,7 +115,7 @@ func TestCheck(t *testing.T) {
 		},
 	}, testdata.Now))
 	// The "certificates-have-crldp" object should error because the certificate CRL is a mismatch
-	require.ErrorContains(t, checker.Check(ctx, bucket, certificatesHaveCRLDP, nil), "has CRLDistributionPoint")
+	require.ErrorContains(t, checker.Check(ctx, bucket, certificatesHaveCRLDP, nil), "has non-matching CRLDistributionPoint")
 }
 
 func Test_nameID(t *testing.T) {
