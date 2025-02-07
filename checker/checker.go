@@ -208,7 +208,7 @@ func (c *Checker) lookForSeenCerts(ctx context.Context, crl *x509.RevocationList
 
 	err = c.db.DeleteSerials(ctx, seenSerials)
 	if err != nil {
-		return fmt.Errorf("failed to delete from db: %v", err)
+		errs = append(errs, fmt.Errorf("failed to delete from db: %v", err))
 	}
 	return errors.Join(errs...)
 }
