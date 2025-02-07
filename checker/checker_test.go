@@ -31,13 +31,17 @@ func TestCheck(t *testing.T) {
 	issuerName := nameID(issuer)
 	shouldBeGood := fmt.Sprintf("%s/should-be-good.crl", issuerName)
 	earlyRemoval := fmt.Sprintf("%s/early-removal.crl", issuerName)
-	shouldBeGoodIDP := fmt.Sprintf("http://idp/%s", shouldBeGood)
-	earlyRemovalIDP := fmt.Sprintf("http://idp/%s", earlyRemoval)
+	certificatesHaveCRLDP := fmt.Sprintf("%s/certificates-have-crldp.crl", issuerName)
+	shouldBeGoodURL := fmt.Sprintf("http://idp/%s", shouldBeGood)
+	earlyRemovalURL := fmt.Sprintf("http://idp/%s", earlyRemoval)
+	certificatesHaveCRLDPURL := fmt.Sprintf("http://idp/%s", certificatesHaveCRLDP)
 
-	crl1der := testdata.MakeCRL(t, &testdata.CRL1, shouldBeGoodIDP, issuer, key)
-	crl2der := testdata.MakeCRL(t, &testdata.CRL2, shouldBeGoodIDP, issuer, key)
-	crl3der := testdata.MakeCRL(t, &testdata.CRL3, earlyRemovalIDP, issuer, key)
-	crl4der := testdata.MakeCRL(t, &testdata.CRL4, earlyRemovalIDP, issuer, key)
+	crl1der := testdata.MakeCRL(t, &testdata.CRL1, shouldBeGoodURL, issuer, key)
+	crl2der := testdata.MakeCRL(t, &testdata.CRL2, shouldBeGoodURL, issuer, key)
+	crl3der := testdata.MakeCRL(t, &testdata.CRL3, earlyRemovalURL, issuer, key)
+	crl4der := testdata.MakeCRL(t, &testdata.CRL4, earlyRemovalURL, issuer, key)
+	crl6der := testdata.MakeCRL(t, &testdata.CRL6, certificatesHaveCRLDPURL, issuer, key)
+	crl7der := testdata.MakeCRL(t, &testdata.CRL7, certificatesHaveCRLDPURL, issuer, key)
 
 	data := map[string][]storagemock.MockObject{
 		shouldBeGood: {
@@ -60,6 +64,16 @@ func TestCheck(t *testing.T) {
 				Data:      crl3der,
 			},
 		},
+		certificatesHaveCRLDP: {
+			{
+				VersionID: "the-current-version",
+				Data:      crl7der, // CRL6 has serial 4213, which has a CRLDP
+			},
+			{
+				VersionID: "the-previous-version",
+				Data:      crl6der,
+			},
+		},
 	}
 	bucket := "crl-test"
 
@@ -74,11 +88,12 @@ func TestCheck(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Watch the first revoked cert's serial
+	// Insert some serials in the "unseen-certificates" table to be checked.
 	serial := testdata.CRL1.RevokedCertificateEntries[0].SerialNumber
 	require.NoError(t, checker.db.AddCert(ctx, &x509.Certificate{SerialNumber: serial}, testdata.Now))
 	shouldNotBeSeen := big.NewInt(12345)
 	require.NoError(t, checker.db.AddCert(ctx, &x509.Certificate{SerialNumber: shouldNotBeSeen}, testdata.Now))
+	mismatchCRLDistributionPoint := big.NewInt(4213)
 
 	require.NoError(t, checker.Check(ctx, bucket, shouldBeGood, nil))
 
@@ -92,6 +107,15 @@ func TestCheck(t *testing.T) {
 
 	// The "early-removal" object should error on a certificate removed early
 	require.ErrorContains(t, checker.Check(ctx, bucket, earlyRemoval, nil), "early removal of 1 certificates detected!")
+
+	require.NoError(t, checker.db.AddCert(ctx, &x509.Certificate{
+		SerialNumber: mismatchCRLDistributionPoint,
+		CRLDistributionPoints: []string{
+			"http://example.com",
+		},
+	}, testdata.Now))
+	// The "certificates-have-crldp" object should error because the certificate CRL is a mismatch
+	require.ErrorContains(t, checker.Check(ctx, bucket, certificatesHaveCRLDP, nil), "has non-matching CRLDistributionPoint")
 }
 
 func Test_nameID(t *testing.T) {

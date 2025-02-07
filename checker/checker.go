@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"log"
 	"math/big"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/letsencrypt/boulder/core"
 	"github.com/letsencrypt/boulder/crl/checker"
+	"github.com/letsencrypt/boulder/crl/idp"
 
 	"github.com/letsencrypt/crl-monitor/checker/earlyremoval"
 	"github.com/letsencrypt/crl-monitor/checker/expiry"
@@ -139,6 +141,11 @@ func (c *Checker) Check(ctx context.Context, bucket, object string, startingVers
 	}
 	log.Printf("crl %d successfully linted", crl.Number)
 
+	_, err = getIDP(crl)
+	if err != nil {
+		return err
+	}
+
 	// And the previous:
 	prevVersion, err := c.storage.Previous(ctx, bucket, object, version)
 	if err != nil {
@@ -182,17 +189,28 @@ func (c *Checker) lookForSeenCerts(ctx context.Context, crl *x509.RevocationList
 		return fmt.Errorf("failed to read from db: %v", err)
 	}
 	var seenSerials [][]byte
+	var errs []error
 	for _, seen := range crl.RevokedCertificateEntries {
 		if metadata, ok := unseenCerts[db.NewCertKey(seen.SerialNumber).SerialString()]; ok {
+			idp, err := getIDP(crl)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			if metadata.CRLDistributionPoint != "" && metadata.CRLDistributionPoint != idp {
+				errs = append(errs, fmt.Errorf("cert %x on CRL %q has non-matching CRLDistributionPoint %q",
+					seen.SerialNumber, idp, metadata.CRLDistributionPoint))
+				continue
+			}
 			seenSerials = append(seenSerials, metadata.SerialNumber)
 		}
 	}
 
 	err = c.db.DeleteSerials(ctx, seenSerials)
 	if err != nil {
-		return fmt.Errorf("failed to delete from db: %v", err)
+		errs = append(errs, fmt.Errorf("failed to delete from db: %v", err))
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // issuerForObject takes an s3 object path, extracts the issuer prefix, and returns the right x509.Certificate
@@ -208,4 +226,15 @@ func (c *Checker) issuerForObject(object string) (*x509.Certificate, error) {
 	}
 
 	return issuer, nil
+}
+
+func getIDP(crl *x509.RevocationList) (string, error) {
+	idps, err := idp.GetIDPURIs(crl.Extensions)
+	if err != nil {
+		return "", fmt.Errorf("extracting IssuingDistributionPoint URIs: %v", err)
+	}
+	if len(idps) == 1 {
+		return idps[0], nil
+	}
+	return "", fmt.Errorf("CRL had incorrect number of IssuingDistributionPoint URIs: %s", idps)
 }

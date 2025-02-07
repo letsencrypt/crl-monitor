@@ -70,6 +70,28 @@ var CRL5 = x509.RevocationList{
 	RevokedCertificateEntries: nil,
 }
 
+// CRL6 contains serial 4213, which will have a CRLDistributionPoint
+// that doesn't match the CRL.
+var CRL6 = x509.RevocationList{
+	ThisUpdate: Now.Add(4 * time.Hour),
+	NextUpdate: Now.Add(24 * time.Hour),
+	Number:     big.NewInt(1),
+	RevokedCertificateEntries: []x509.RevocationListEntry{
+		{SerialNumber: big.NewInt(4213), RevocationTime: Now},
+	},
+}
+
+// CRL7 also contains serial 4213, which will have a CRLDistributionPoint
+// that doesn't match the CRL.
+var CRL7 = x509.RevocationList{
+	ThisUpdate: Now.Add(5 * time.Hour),
+	NextUpdate: Now.Add(25 * time.Hour),
+	Number:     big.NewInt(2),
+	RevokedCertificateEntries: []x509.RevocationListEntry{
+		{SerialNumber: big.NewInt(4213), RevocationTime: Now},
+	},
+}
+
 func MakeIssuer(t *testing.T) (*x509.Certificate, crypto.Signer) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
