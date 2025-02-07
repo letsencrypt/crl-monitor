@@ -48,7 +48,7 @@ func New(ctx context.Context, table, dynamoEndpoint string) (*Database, error) {
 type CertMetadata struct {
 	CertKey
 	RevocationTime       time.Time `dynamodbav:"RT,unixtime"`
-	CRLDistributionPoint string    `dynamodbav:"DP,string"`
+	CRLDistributionPoint string    `dynamodbav:"DP,string,omitempty"`
 }
 
 // CertKey is the DynamoDB primary key, which is the serial number.
