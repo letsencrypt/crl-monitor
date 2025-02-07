@@ -11,14 +11,15 @@ import (
 	"encoding/pem"
 	"fmt"
 	"log"
+	"log/slog"
 	mathrand "math/rand/v2"
+	"os"
 	"time"
 
 	"github.com/caddyserver/certmagic"
 	"github.com/libdns/route53"
-	"github.com/mholt/acmez"
-	"github.com/mholt/acmez/acme"
-	"go.uber.org/zap"
+	"github.com/mholt/acmez/v3"
+	"github.com/mholt/acmez/v3/acme"
 
 	"github.com/letsencrypt/crl-monitor/cmd"
 	"github.com/letsencrypt/crl-monitor/db"
@@ -47,21 +48,20 @@ type Churner struct {
 // `baseDomain` should be a domain name that the `dnsProvider` can create/delete
 // records for. The certs will be issued from the CA at `acmeDirectory`.
 // The resulting serials are stored into `db`
-func New(baseDomain string, acmeDirectory string, dnsProvider certmagic.ACMEDNSProvider, db *db.Database, cutoff time.Time) (*Churner, error) {
-	zapLogger, err := zap.NewProduction()
-	if err != nil {
-		return nil, err
-	}
+func New(baseDomain string, acmeDirectory string, dnsProvider certmagic.DNSProvider, db *db.Database, cutoff time.Time) (*Churner, error) {
+	slogger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
 	acmeClient := acmez.Client{
 		Client: &acme.Client{
 			Directory: acmeDirectory,
-			Logger:    zapLogger,
+			Logger:    slogger,
 		},
 		ChallengeSolvers: map[string]acmez.Solver{
 			acme.ChallengeTypeDNS01: &certmagic.DNS01Solver{
-				DNSProvider:      dnsProvider,
-				PropagationDelay: 60 * time.Second, // Route53 docs say 60 seconds in normal conditions
+				DNSManager: certmagic.DNSManager{
+					DNSProvider:      dnsProvider,
+					PropagationDelay: 60 * time.Second, // Route53 docs say 60 seconds in normal conditions,
+				},
 			},
 		},
 	}
@@ -119,10 +119,17 @@ func (c *Churner) RegisterAccount(ctx context.Context) error {
 }
 
 func (c *Churner) retryObtain(ctx context.Context, certPrivateKey crypto.Signer, sans []string) ([]acme.Certificate, error) {
-	var err error
+	csr, err := acmez.NewCSR(certPrivateKey, sans)
+	if err != nil {
+		return nil, err
+	}
+	params, err := acmez.OrderParametersFromCSR(c.acmeAccount, csr)
+	if err != nil {
+		return nil, err
+	}
 	var certificates []acme.Certificate
 	for retry := 0; retry < 5; retry++ {
-		certificates, err = c.acmeClient.ObtainCertificate(ctx, c.acmeAccount, certPrivateKey, sans)
+		certificates, err = c.acmeClient.ObtainCertificate(ctx, params)
 		if err != nil {
 			log.Printf("error obtaining certificate on retry %d: %v", retry, err)
 			time.Sleep(time.Second)

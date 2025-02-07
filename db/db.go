@@ -141,16 +141,3 @@ func (db *Database) DeleteSerials(ctx context.Context, serialNumbers [][]byte) e
 	}
 	return nil
 }
-
-// StaticResolver is used in test and dev to use the local dynamodb
-func StaticResolver(url string) func(service, region string, opts ...interface{}) (aws.Endpoint, error) {
-	return func(service, region string, opts ...interface{}) (aws.Endpoint, error) {
-		if service != dynamodb.ServiceID {
-			return aws.Endpoint{}, &aws.EndpointNotFoundError{}
-		}
-		return aws.Endpoint{
-			PartitionID: "aws",
-			URL:         url,
-		}, nil
-	}
-}
