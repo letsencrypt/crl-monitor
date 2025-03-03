@@ -115,18 +115,57 @@ type Checker struct {
 	issuers  map[string]*x509.Certificate
 }
 
+// crlSummary is a subset of fields from *x509.RevocationList
+// useful for logging, plus the number of entries and some metadata.
+type crlSummary struct {
+	Number     *big.Int
+	NumEntries int
+	ThisUpdate time.Time
+	NextUpdate time.Time
+	URL        string
+	StorageKey storage.Key
+}
+
+func summary(crl *x509.RevocationList, key storage.Key) crlSummary {
+	// If getIDP fails, we will just log ""
+	idp, _ := getIDP(crl)
+	return crlSummary{
+		ThisUpdate: crl.ThisUpdate,
+		NextUpdate: crl.NextUpdate,
+		Number:     crl.Number,
+		NumEntries: len(crl.RevokedCertificateEntries),
+		URL:        idp,
+		StorageKey: key,
+	}
+}
+
+type crlsSummary struct {
+	Old, New crlSummary
+}
+
+func logSummary(old *x509.RevocationList, oldStorageKey storage.Key, new *x509.RevocationList, newStorageKey storage.Key) crlsSummary {
+	return crlsSummary{
+		Old: summary(old, oldStorageKey),
+		New: summary(new, newStorageKey),
+	}
+}
+
 // Check fetches a CRL and its previous version.  It runs lints on the CRL, checks for early removal, and removes any
 // certificates we're waiting for out of the database.
 func (c *Checker) Check(ctx context.Context, bucket, object string, startingVersion *string) error {
 	// Read the current CRL shard
-	crlDER, version, err := c.storage.Fetch(ctx, bucket, object, startingVersion)
+	crlDER, version, err := c.storage.Fetch(ctx, storage.Key{
+		Bucket:  bucket,
+		Object:  object,
+		Version: startingVersion,
+	})
 	if err != nil {
 		return err
 	}
 
 	crl, err := x509.ParseRevocationList(crlDER)
 	if err != nil {
-		return fmt.Errorf("error parsing current crl: %v", err)
+		return fmt.Errorf("parsing current crl: %v", err)
 	}
 	log.Printf("loaded CRL number %d (len %d) from %s version %s", crl.Number, len(crl.RevokedCertificateEntries), object, version)
 
@@ -146,26 +185,36 @@ func (c *Checker) Check(ctx context.Context, bucket, object string, startingVers
 		return err
 	}
 
+	curKey := storage.Key{
+		Bucket:  bucket,
+		Object:  object,
+		Version: &version,
+	}
 	// And the previous:
-	prevVersion, err := c.storage.Previous(ctx, bucket, object, version)
+	prevVersion, err := c.storage.Previous(ctx, curKey)
 	if err != nil {
 		return err
 	}
 
-	prevDER, _, err := c.storage.Fetch(ctx, bucket, object, &prevVersion)
+	prevKey := curKey
+	prevKey.Version = &prevVersion
+
+	prevDER, _, err := c.storage.Fetch(ctx, prevKey)
 	if err != nil {
 		return err
 	}
 
 	prev, err := x509.ParseRevocationList(prevDER)
 	if err != nil {
-		return fmt.Errorf("error parsing previous crl: %v", err)
+		return fmt.Errorf("parsing previous crl: %v", err)
 	}
 	log.Printf("loaded previous CRL number %d (len %d) from version %s", prev.Number, len(prev.RevokedCertificateEntries), prevVersion)
 
+	context := logSummary(prev, prevKey, crl, curKey)
+
 	earlyRemoved, err := earlyremoval.Check(ctx, c.fetcher, c.maxFetch, prev, crl)
 	if err != nil {
-		return fmt.Errorf("failed to check for early removal: %v", err)
+		return fmt.Errorf("checking for early removal: %v. context: %+v", err, context)
 	}
 
 	if len(earlyRemoved) != 0 {
@@ -175,7 +224,7 @@ func (c *Checker) Check(ctx context.Context, bucket, object string, startingVers
 		}
 
 		// Certificates removed early!  This is very bad.
-		return fmt.Errorf("early removal of %d certificates detected! First %d: %v", len(earlyRemoved), len(sample), sample)
+		return fmt.Errorf("early removal of %d certificates detected! First %d: %v. context: %+v", len(earlyRemoved), len(sample), sample, context)
 	}
 
 	return c.lookForSeenCerts(ctx, crl)
@@ -186,7 +235,7 @@ func (c *Checker) Check(ctx context.Context, bucket, object string, startingVers
 func (c *Checker) lookForSeenCerts(ctx context.Context, crl *x509.RevocationList) error {
 	unseenCerts, err := c.db.GetAllCerts(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to read from db: %v", err)
+		return fmt.Errorf("getting all certs from DB: %v", err)
 	}
 	var seenSerials [][]byte
 	var errs []error
@@ -208,7 +257,7 @@ func (c *Checker) lookForSeenCerts(ctx context.Context, crl *x509.RevocationList
 
 	err = c.db.DeleteSerials(ctx, seenSerials)
 	if err != nil {
-		errs = append(errs, fmt.Errorf("failed to delete from db: %v", err))
+		errs = append(errs, fmt.Errorf("deleting %d serials from DB: %v", len(seenSerials), err))
 	}
 	return errors.Join(errs...)
 }
