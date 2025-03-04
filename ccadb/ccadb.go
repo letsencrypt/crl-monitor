@@ -91,7 +91,7 @@ func (c *Checker) Check(ctx context.Context) error {
 				errs = append(errs, fmt.Errorf("fetching %s: %s", url, err))
 				continue
 			}
-			age := time.Since(crl.ThisUpdate).Round(time.Hour)
+			age := time.Since(crl.ThisUpdate).Round(time.Minute)
 			nextUpdate := time.Until(crl.NextUpdate).Round(time.Hour)
 			entries += len(crl.RevokedCertificateEntries)
 			bytes += len(crl.Raw)
