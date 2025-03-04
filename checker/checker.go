@@ -15,12 +15,12 @@ import (
 
 	"github.com/letsencrypt/boulder/core"
 	"github.com/letsencrypt/boulder/crl/checker"
-	"github.com/letsencrypt/boulder/crl/idp"
 
 	"github.com/letsencrypt/crl-monitor/checker/earlyremoval"
 	"github.com/letsencrypt/crl-monitor/checker/expiry"
 	"github.com/letsencrypt/crl-monitor/cmd"
 	"github.com/letsencrypt/crl-monitor/db"
+	"github.com/letsencrypt/crl-monitor/idp"
 	"github.com/letsencrypt/crl-monitor/storage"
 )
 
@@ -141,7 +141,7 @@ func (c *Checker) Check(ctx context.Context, bucket, object string, startingVers
 	}
 	log.Printf("crl %d successfully linted", crl.Number)
 
-	_, err = getIDP(crl)
+	_, err = idp.Get(crl)
 	if err != nil {
 		return err
 	}
@@ -192,7 +192,7 @@ func (c *Checker) lookForSeenCerts(ctx context.Context, crl *x509.RevocationList
 	var errs []error
 	for _, seen := range crl.RevokedCertificateEntries {
 		if metadata, ok := unseenCerts[db.NewCertKey(seen.SerialNumber).SerialString()]; ok {
-			idp, err := getIDP(crl)
+			idp, err := idp.Get(crl)
 			if err != nil {
 				errs = append(errs, err)
 				continue
@@ -226,15 +226,4 @@ func (c *Checker) issuerForObject(object string) (*x509.Certificate, error) {
 	}
 
 	return issuer, nil
-}
-
-func getIDP(crl *x509.RevocationList) (string, error) {
-	idps, err := idp.GetIDPURIs(crl.Extensions)
-	if err != nil {
-		return "", fmt.Errorf("extracting IssuingDistributionPoint URIs: %v", err)
-	}
-	if len(idps) == 1 {
-		return idps[0], nil
-	}
-	return "", fmt.Errorf("CRL had incorrect number of IssuingDistributionPoint URIs: %s", idps)
 }
