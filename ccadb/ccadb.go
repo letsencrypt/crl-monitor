@@ -3,6 +3,7 @@ package ccadb
 import (
 	"context"
 	"crypto/x509"
+	_ "embed"
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
@@ -19,9 +20,11 @@ import (
 	"github.com/letsencrypt/crl-monitor/idp"
 )
 
+//go:embed intermediates.pem
+var allIssuers []byte
+
 const (
 	CCADBAllCertificatesCSVURL cmd.EnvVar = "CCADB_ALL_CERTIFICATES_CSV_URL"
-	AllIssuersURL              cmd.EnvVar = "ALL_ISSUERS_URL"
 	CRLAgeLimit                cmd.EnvVar = "CRL_AGE_LIMIT"
 	CAOwner                    cmd.EnvVar = "CA_OWNER"
 )
@@ -29,13 +32,13 @@ const (
 type Checker struct {
 	allCertificatesCSVURL string
 	caOwner               string
-	allIssuersURL         string
 	crlAgeLimit           time.Duration
+
+	// Map from SKID (bytes cast to string) to issuer.
+	issuers map[string]*x509.Certificate
 }
 
 func NewFromEnv() (*Checker, error) {
-	allIssuersURL := AllIssuersURL.MustRead("URL containing PEM of all intermediates belonging to the CA_OWNER")
-
 	ccadbAllCertificatesCSVURL := "https://ccadb.my.salesforce-sites.com/ccadb/AllCertificateRecordsCSVFormatv2"
 	allCertsCSV, ok := CCADBAllCertificatesCSVURL.LookupEnv()
 	if ok {
@@ -57,21 +60,22 @@ func NewFromEnv() (*Checker, error) {
 			return nil, fmt.Errorf("parsing age limit: %s", err)
 		}
 	}
+
+	issuers, err := parseIssuers()
+	if err != nil {
+		return nil, err
+	}
+
 	return &Checker{
 		allCertificatesCSVURL: ccadbAllCertificatesCSVURL,
 		caOwner:               caOwner,
-		allIssuersURL:         allIssuersURL,
 		crlAgeLimit:           ageLimitDuration,
+		issuers:               issuers,
 	}, nil
 }
 
 func (c *Checker) Check(ctx context.Context) error {
-	issuers, err := getIssuers(c.allIssuersURL)
-	if err != nil {
-		return err
-	}
-
-	crlURLs, err := getCRLURLs(ctx, c.allCertificatesCSVURL, "Internet Security Research Group")
+	crlURLs, err := c.getCRLURLs(ctx, c.allCertificatesCSVURL, "Internet Security Research Group")
 	if err != nil {
 		return err
 	}
@@ -82,7 +86,7 @@ func (c *Checker) Check(ctx context.Context) error {
 	for skid, urls := range crlURLs {
 		for _, url := range urls {
 			crls++
-			issuer := issuers[skid]
+			issuer := c.issuers[skid]
 			if issuer == nil {
 				return fmt.Errorf("no issuer found for skid %x", skid)
 			}
@@ -138,7 +142,7 @@ func checkCRL(ctx context.Context, url string, issuer *x509.Certificate, ageLimi
 }
 
 // returns a map from issuer SKID to list of URLs
-func getCRLURLs(ctx context.Context, csvURL string, owner string) (map[string][]string, error) {
+func (c Checker) getCRLURLs(ctx context.Context, csvURL string, owner string) (map[string][]string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, csvURL, nil)
 	if err != nil {
 		return nil, err
@@ -157,9 +161,7 @@ func getCRLURLs(ctx context.Context, csvURL string, owner string) (map[string][]
 		return nil, err
 	}
 
-	var ownerIndex int
-	var crlIndex int
-	var skidIndex int
+	var ownerIndex, crlIndex, skidIndex, certificateNameIndex int
 	for i, name := range header {
 		if name == "CA Owner" {
 			ownerIndex = i
@@ -169,6 +171,9 @@ func getCRLURLs(ctx context.Context, csvURL string, owner string) (map[string][]
 		}
 		if name == "Subject Key Identifier" {
 			skidIndex = i
+		}
+		if name == "Certificate Name" {
+			certificateNameIndex = i
 		}
 	}
 	allCRLs := make(map[string][]string)
@@ -183,14 +188,6 @@ func getCRLURLs(ctx context.Context, csvURL string, owner string) (map[string][]
 		if record[ownerIndex] != owner {
 			continue
 		}
-		skidBase64 := record[skidIndex]
-		skid, err := base64.StdEncoding.DecodeString(skidBase64)
-		if err != nil {
-			return nil, err
-		}
-		if len(skid) == 0 {
-			return nil, fmt.Errorf("no skid")
-		}
 		crlJSON := record[crlIndex]
 		if crlJSON == "" {
 			continue
@@ -204,6 +201,19 @@ func getCRLURLs(ctx context.Context, csvURL string, owner string) (map[string][]
 		if len(crls) == 1 && crls[0] == "" {
 			continue
 		}
+		certificateName := record[certificateNameIndex]
+		skidBase64 := record[skidIndex]
+		skid, err := base64.StdEncoding.DecodeString(skidBase64)
+		if err != nil {
+			return nil, err
+		}
+		if len(skid) == 0 {
+			return nil, fmt.Errorf("no skid for %q", certificateName)
+		}
+		if c.issuers[string(skid)] == nil {
+			return nil, fmt.Errorf("CCADB contained %q with SKID %x, but that SKID is not in embedded issuers file. Might need update",
+				certificateName, skid)
+		}
 		for _, c := range crls {
 			if c == "" {
 				return nil, fmt.Errorf("empty CRL in %+v", record)
@@ -214,35 +224,23 @@ func getCRLURLs(ctx context.Context, csvURL string, owner string) (map[string][]
 	return allCRLs, nil
 }
 
-// getIssuers fetches and parses a PEM file containing multiple intermediates.
+// getIssuers parses the embedded PEM file containing multiple intermediates.
 //
 // The file should contain an entry for every issuer that is listed in the
 // CCADB All Certificates list for the relevant CA Organization.
 //
 // Returns a map from SubjectKeyId (cast from []byte to string) to the
 // matching intermediate.
-func getIssuers(allIssuersURL string) (map[string]*x509.Certificate, error) {
-	resp, err := http.Get(allIssuersURL)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP status code %d from %s", resp.StatusCode, allIssuersURL)
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
+func parseIssuers() (map[string]*x509.Certificate, error) {
 	ret := make(map[string]*x509.Certificate)
 
+	remaining := allIssuers
 	for {
-		block, remaining := pem.Decode(body)
+		var block *pem.Block
+		block, remaining = pem.Decode(remaining)
 		if block == nil {
 			return ret, nil
 		}
-		body = remaining
 
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
