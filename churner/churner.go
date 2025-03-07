@@ -172,7 +172,8 @@ func (c *Churner) Churn(ctx context.Context) error {
 	// If the certificate has any CRLDistributionPoints, check that they can be fetched,
 	// parsed, verified, and linted. We don't try to check for revocation at this stage
 	// because it may be several hours before a new CRL is uploaded that reflects the
-	// revocation we're about to do.
+	// revocation we're about to do. Contrariwise, we check for non-revocation, since
+	// we're fetching the CRL before revoking.
 	for _, url := range cert.CRLDistributionPoints {
 		body, err := retryhttp.Get(ctx, url)
 		if err != nil {
@@ -187,6 +188,11 @@ func (c *Churner) Churn(ctx context.Context) error {
 		err = checker.Validate(crl, issuer, 24*time.Hour)
 		if err != nil {
 			return err
+		}
+		for _, entry := range crl.RevokedCertificateEntries {
+			if entry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
+				return fmt.Errorf("certificate %x was found on CRL %s before it was revoked", cert.SerialNumber, url)
+			}
 		}
 	}
 
