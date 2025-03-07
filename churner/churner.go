@@ -21,8 +21,10 @@ import (
 	"github.com/mholt/acmez/v3"
 	"github.com/mholt/acmez/v3/acme"
 
+	"github.com/letsencrypt/boulder/crl/checker"
 	"github.com/letsencrypt/crl-monitor/cmd"
 	"github.com/letsencrypt/crl-monitor/db"
+	"github.com/letsencrypt/crl-monitor/retryhttp"
 )
 
 const (
@@ -152,13 +154,46 @@ func (c *Churner) Churn(ctx context.Context) error {
 		return err
 	}
 
-	// certificates contains all the possible cert chains.  We only care about
-	// the cert, so we just take the first one and parse it.
+	// certificates contains all the possible cert chains.  We don't
+	// care about alternate chains, but we do care about getting
+	// the parent of the certificate we just got, so we can validate its CRL.
 	firstChain := certificates[0].ChainPEM
-	block, _ := pem.Decode(firstChain)
+	block, remaining := pem.Decode(firstChain)
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
 		return err
+	}
+	block, _ = pem.Decode(remaining)
+	issuer, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return err
+	}
+
+	// If the certificate has any CRLDistributionPoints, check that they can be fetched,
+	// parsed, verified, and linted. We don't try to check for revocation at this stage
+	// because it may be several hours before a new CRL is uploaded that reflects the
+	// revocation we're about to do. Contrariwise, we check for non-revocation, since
+	// we're fetching the CRL before revoking.
+	for _, url := range cert.CRLDistributionPoints {
+		body, err := retryhttp.Get(ctx, url)
+		if err != nil {
+			return fmt.Errorf("fetching CRL %q from CRLDistributionPoint of certificate %036x: %s",
+				url, cert.SerialNumber, err)
+		}
+		crl, err := x509.ParseRevocationList(body)
+		if err != nil {
+			return fmt.Errorf("fetching CRL %q from CRLDistributionPoint of certificate %036x: %s",
+				url, cert.SerialNumber, err)
+		}
+		err = checker.Validate(crl, issuer, 24*time.Hour)
+		if err != nil {
+			return err
+		}
+		for _, entry := range crl.RevokedCertificateEntries {
+			if entry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
+				return fmt.Errorf("certificate %x was found on CRL %s before it was revoked", cert.SerialNumber, url)
+			}
+		}
 	}
 
 	err = c.acmeClient.RevokeCertificate(ctx, c.acmeAccount, cert, c.acmeAccount.PrivateKey, acme.ReasonCessationOfOperation)

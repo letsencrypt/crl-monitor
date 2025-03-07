@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"math/big"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -79,7 +78,6 @@ func NewFromEnv(ctx context.Context) (*Checker, error) {
 	}
 
 	baf := expiry.BoulderAPIFetcher{
-		Client:  http.DefaultClient,
 		BaseURL: boulderBaseURL,
 	}
 

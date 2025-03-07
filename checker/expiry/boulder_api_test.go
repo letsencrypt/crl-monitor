@@ -123,7 +123,7 @@ func TestBoulderAPIFetcher(t *testing.T) {
 		res.Write([]byte(testCert))
 	}))
 
-	fetcher := BoulderAPIFetcher{BaseURL: testServer.URL + somePrefix, Client: http.DefaultClient}
+	fetcher := BoulderAPIFetcher{BaseURL: testServer.URL + somePrefix}
 
 	serial := new(big.Int)
 	serial.SetString(serialhex, 16)

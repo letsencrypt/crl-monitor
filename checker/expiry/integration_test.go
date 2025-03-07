@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"net/http"
 	"testing"
 	"time"
 
@@ -36,7 +35,7 @@ func TestBoulderAPI(t *testing.T) {
 	} {
 		t.Run(tc.subdomain, func(t *testing.T) {
 			baseURL := fmt.Sprintf("https://%s.api.letsencrypt.org/get/cert", tc.subdomain)
-			baf := BoulderAPIFetcher{Client: http.DefaultClient, BaseURL: baseURL}
+			baf := BoulderAPIFetcher{BaseURL: baseURL}
 
 			serial := new(big.Int)
 			serial.SetString(tc.serial, 16)
