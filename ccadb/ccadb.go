@@ -30,6 +30,17 @@ const (
 	CAOwner                    cmd.EnvVar = "CA_OWNER"
 )
 
+// Checker fetches the AllCertificatesRecordsReport from CCADB, filters for a
+// specific CA Owner (defaults to 'Internet Security Research Group'), and
+// fetches all CRLs found.
+//
+// It checks that the CRLs:
+//   - Are not too old
+//   - Have an issuingDistributionPoint that matches the URL from which they
+//     were fetched
+//   - Have a valid signature based on their issuer SKID from CCADB
+//     (full issuer certificates for ISRG are embedded in this binary)
+//   - Don't have duplicate serial numbers across different CRLs
 type Checker struct {
 	allCertificatesCSVURL string
 	caOwner               string
@@ -76,7 +87,7 @@ func NewFromEnv() (*Checker, error) {
 }
 
 func (c *Checker) Check(ctx context.Context) error {
-	crlURLs, err := c.getCRLURLs(ctx, c.allCertificatesCSVURL, "Internet Security Research Group")
+	crlURLs, err := c.getCRLURLs(ctx, c.allCertificatesCSVURL, c.caOwner)
 	if err != nil {
 		return err
 	}
@@ -242,6 +253,10 @@ func (c Checker) getCRLURLs(ctx context.Context, csvURL string, owner string) (m
 			return nil, fmt.Errorf("CCADB contained %q with SKID %x multiple times with different CRLs", certificateName, skid)
 		}
 		allCRLs[stringSKID] = crls
+	}
+
+	if len(allCRLs) == 0 {
+		return nil, fmt.Errorf("no records found in CCADB for CA Owner %q", owner)
 	}
 	return allCRLs, nil
 }
