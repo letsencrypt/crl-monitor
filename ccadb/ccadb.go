@@ -13,6 +13,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/letsencrypt/boulder/crl/checker"
@@ -82,6 +83,8 @@ func (c *Checker) Check(ctx context.Context) error {
 
 	var crls, entries, bytes int
 
+	serials := make(map[string]*x509.RevocationList)
+
 	var errs []error
 	for skid, urls := range crlURLs {
 		for _, url := range urls {
@@ -95,6 +98,24 @@ func (c *Checker) Check(ctx context.Context) error {
 				errs = append(errs, fmt.Errorf("fetching %s: %s", url, err))
 				continue
 			}
+
+			// Check for duplicates across different CRLs (or within a CRL).
+			// Cap any given CRL at 1M entries to limit memory use.
+			for i, entry := range crl.RevokedCertificateEntries {
+				if i > 1_000_000 {
+					break
+				}
+				serialByteString := string(entry.SerialNumber.Bytes())
+				if otherCRL, ok := serials[serialByteString]; ok {
+					otherCRLURL, err := idp.Get(otherCRL)
+					if err != nil {
+						return err
+					}
+					errs = append(errs, fmt.Errorf("serial %x seen on multiple CRLs: %s and %s", entry.SerialNumber, otherCRLURL, url))
+				}
+				serials[serialByteString] = crl
+			}
+
 			age := time.Since(crl.ThisUpdate).Round(time.Minute)
 			nextUpdate := time.Until(crl.NextUpdate).Round(time.Hour)
 			entries += len(crl.RevokedCertificateEntries)
@@ -210,16 +231,17 @@ func (c Checker) getCRLURLs(ctx context.Context, csvURL string, owner string) (m
 		if len(skid) == 0 {
 			return nil, fmt.Errorf("no skid for %q", certificateName)
 		}
-		if c.issuers[string(skid)] == nil {
-			return nil, fmt.Errorf("CCADB contained %q with SKID %x, but that SKID is not in embedded issuers file. Might need update",
+		stringSKID := string(skid)
+		if c.issuers[stringSKID] == nil {
+			return nil, fmt.Errorf("CCADB contained %q with SKID %x, but that SKID is not in embedded issuers file. Might need update and rebuild this binary",
 				certificateName, skid)
 		}
-		for _, c := range crls {
-			if c == "" {
-				return nil, fmt.Errorf("empty CRL in %+v", record)
-			}
-			allCRLs[string(skid)] = append(allCRLs[string(skid)], c)
+		// An issuer can show up multiple times, under different cross-signs. However
+		// it must have the same list of CRLs each time.
+		if c := allCRLs[stringSKID]; c != nil && !slices.Equal(c, crls) {
+			return nil, fmt.Errorf("CCADB contained %q with SKID %x multiple times with different CRLs", certificateName, skid)
 		}
+		allCRLs[stringSKID] = crls
 	}
 	return allCRLs, nil
 }
