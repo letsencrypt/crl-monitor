@@ -14,7 +14,7 @@ require (
 	github.com/caddyserver/certmagic v0.21.7
 	github.com/letsencrypt/boulder v0.0.0-20240424004736-7ee5b469a6a9
 	github.com/libdns/route53 v1.5.1
-	github.com/mholt/acmez/v3 v3.1.0
+	github.com/mholt/acmez/v3 v3.1.2
 	github.com/stretchr/testify v1.10.0
 )
 
