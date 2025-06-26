@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/letsencrypt/crl-monitor/retryhttp"
 	"io"
 	"log"
 	"net/http"
@@ -140,22 +141,11 @@ func (c *Checker) Check(ctx context.Context) error {
 }
 
 func checkCRL(ctx context.Context, url string, issuer *x509.Certificate, ageLimit time.Duration) (*x509.RevocationList, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	body, err := retryhttp.Get(ctx, url)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP status code %d", resp.StatusCode)
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading CRL body: %s", err)
-	}
+
 	crl, err := x509.ParseRevocationList(body)
 	if err != nil {
 		return nil, err
@@ -229,10 +219,6 @@ func (c Checker) getCRLURLs(ctx context.Context, csvURL string, owner string) (m
 		if err != nil {
 			return nil, err
 		}
-		// Roots have a CRL list containing a single ""
-		if len(crls) == 1 && crls[0] == "" {
-			continue
-		}
 		certificateName := record[certificateNameIndex]
 		skidBase64 := record[skidIndex]
 		skid, err := base64.StdEncoding.DecodeString(skidBase64)
@@ -247,7 +233,7 @@ func (c Checker) getCRLURLs(ctx context.Context, csvURL string, owner string) (m
 			return nil, fmt.Errorf("CCADB contained %q with SKID %x, but that SKID is not in embedded issuers file. Might need update and rebuild this binary",
 				certificateName, skid)
 		}
-		// An issuer can show up multiple times, under different cross-signs. However
+		// An issuer can show up multiple times, under different cross-signs. However,
 		// it must have the same list of CRLs each time.
 		if c := allCRLs[stringSKID]; c != nil && !slices.Equal(c, crls) {
 			return nil, fmt.Errorf("CCADB contained %q with SKID %x multiple times with different CRLs", certificateName, skid)
