@@ -120,7 +120,7 @@ func (db *Database) GetAllCerts(ctx context.Context) (map[string]CertMetadata, e
 
 	certs := make(map[string]CertMetadata, len(certList))
 	for _, cert := range certList {
-		certs[cert.CertKey.SerialString()] = cert
+		certs[cert.SerialString()] = cert
 	}
 	return certs, nil
 }
