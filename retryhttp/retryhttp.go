@@ -35,17 +35,16 @@ func getBody(ctx context.Context, url string) ([]byte, error) {
 
 // Get is a simple wrapper around http.Client.Do that will retry on a fixed backoff schedule
 func Get(ctx context.Context, url string) ([]byte, error) {
-	// A fixed sequence of retries. We start with 0 seconds, retrying
-	// immediately, and increase a few seconds between each retry. The final
-	// value is zero so that we don't sleep before returning the final error.
+	// A fixed exponential backoff schedule. The final value is zero so that we don't sleep before
+	// returning the final error.
 	var err error
-	for _, backoff := range []int{0, 1, 1, 2, 3, 0} {
+	for _, backoff := range []int{1000, 1250, 1562, 1953, 2441, 3051, 3814, 4768, 5960, 7450, 9313, 11641, 0} {
 		var body []byte
 		body, err = getBody(ctx, url)
 		if err == nil {
 			return body, nil
 		}
-		time.Sleep(time.Duration(backoff) * time.Second)
+		time.Sleep(time.Duration(backoff) * time.Millisecond)
 	}
 	return nil, err
 }

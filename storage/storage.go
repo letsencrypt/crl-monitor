@@ -20,6 +20,12 @@ type Storage struct {
 	S3Client s3client
 }
 
+// The parameters used to fetch a unique item from storage.
+type Key struct {
+	Bucket, Object string
+	Version        *string
+}
+
 func New(ctx context.Context) *Storage {
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
@@ -34,29 +40,32 @@ func New(ctx context.Context) *Storage {
 // The bucket and object names are required.
 // If version is nil, the current version is returned.
 // Returns the retrieved DER CRL bytes and what VersionID it was.
-func (s *Storage) Fetch(ctx context.Context, bucket, object string, version *string) ([]byte, string, error) {
+func (s *Storage) Fetch(ctx context.Context, key Key) ([]byte, string, error) {
 	resp, err := s.S3Client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket:    &bucket,
-		Key:       &object,
-		VersionId: version,
+		Bucket:    &key.Bucket,
+		Key:       &key.Object,
+		VersionId: key.Version,
 	})
 	if err != nil {
-		return nil, "", fmt.Errorf("error retrieving CRL %s %s version %v: %w", bucket, object, version, err)
+		return nil, "", fmt.Errorf("retrieving CRL %s %s version %v: %w", key.Bucket, key.Object, key.Version, err)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, "", fmt.Errorf("error reading CRL %s %s version %v: %w", bucket, object, version, err)
+		return nil, "", fmt.Errorf("reading CRL %s %s version %v: %w", key.Bucket, key.Object, key.Version, err)
 	}
 
 	return body, *resp.VersionId, err
 }
 
 // Previous returns the previous version of a CRL shard, which can then be fetched.
-func (s *Storage) Previous(ctx context.Context, bucket, object, version string) (string, error) {
+func (s *Storage) Previous(ctx context.Context, key Key) (string, error) {
+	if key.Version == nil {
+		return "", fmt.Errorf("Previous called with no Version")
+	}
 	resp, err := s.S3Client.ListObjectVersions(ctx, &s3.ListObjectVersionsInput{
-		Bucket: &bucket,
-		Prefix: &object,
+		Bucket: &key.Bucket,
+		Prefix: &key.Object,
 	})
 	if err != nil {
 		return "", err
@@ -70,14 +79,14 @@ func (s *Storage) Previous(ctx context.Context, bucket, object, version string) 
 			break
 		}
 
-		if v.VersionId != nil && *v.VersionId == version {
+		if v.VersionId != nil && *v.VersionId == *key.Version {
 			// This is the version of interest; select the next one
 			found = true
 		}
 	}
 
 	if (!found || prevVersion == nil) && resp.IsTruncated != nil && *resp.IsTruncated {
-		return "", fmt.Errorf("too many versions and pagination not implemented! %s %s %s", bucket, object, version)
+		return "", fmt.Errorf("too many versions and pagination not implemented! %+v", key)
 	}
 
 	if !found {
