@@ -125,8 +125,8 @@ type crlSummary struct {
 }
 
 func summary(crl *x509.RevocationList, key storage.Key) crlSummary {
-	// If getIDP fails, we will just log ""
-	idp, _ := getIDP(crl)
+	// If idp.Get() fails, we will just log ""
+	idp, _ := idp.Get(crl)
 	return crlSummary{
 		ThisUpdate: crl.ThisUpdate,
 		NextUpdate: crl.NextUpdate,
