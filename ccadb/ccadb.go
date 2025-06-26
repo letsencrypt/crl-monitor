@@ -1,6 +1,7 @@
 package ccadb
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	_ "embed"
@@ -13,7 +14,6 @@ import (
 	"github.com/letsencrypt/crl-monitor/retryhttp"
 	"io"
 	"log"
-	"net/http"
 	"slices"
 	"time"
 
@@ -165,19 +165,11 @@ func checkCRL(ctx context.Context, url string, issuer *x509.Certificate, ageLimi
 
 // returns a map from issuer SKID to list of URLs
 func (c Checker) getCRLURLs(ctx context.Context, csvURL string, owner string) (map[string][]string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, csvURL, nil)
+	body, err := retryhttp.Get(ctx, csvURL)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP status code %d", resp.StatusCode)
-	}
-	reader := csv.NewReader(resp.Body)
+	reader := csv.NewReader(bytes.NewReader(body))
 	header, err := reader.Read()
 	if err != nil {
 		return nil, err
