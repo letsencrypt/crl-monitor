@@ -7,11 +7,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/stretchr/testify/require"
 
+	"github.com/letsencrypt/crl-monitor/storage"
 	"github.com/letsencrypt/crl-monitor/storage/mock"
 )
 
 func TestStorage(t *testing.T) {
-	storage := mock.New(t, "somebucket", map[string][]mock.MockObject{
+	mockStorage := mock.New(t, "somebucket", map[string][]mock.MockObject{
 		"123/0.crl": {
 			{VersionID: "111", Data: []byte{0xaa, 0xbb}},
 			{VersionID: "222", Data: []byte{0xcc, 0xdd}},
@@ -56,7 +57,11 @@ func TestStorage(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			crl, version, err := storage.Fetch(context.Background(), "somebucket", tt.object, tt.version)
+			crl, version, err := mockStorage.Fetch(context.Background(), storage.Key{
+				Bucket:  "somebucket",
+				Object:  tt.object,
+				Version: tt.version,
+			})
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedVer, version)
 			require.Equal(t, tt.expectedCRL, crl)
@@ -87,7 +92,11 @@ func TestStorage(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			version, err := storage.Previous(context.Background(), "somebucket", tt.object, tt.version)
+			version, err := mockStorage.Previous(context.Background(), storage.Key{
+				Bucket:  "somebucket",
+				Object:  tt.object,
+				Version: &tt.version,
+			})
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedVer, version)
 		})
@@ -113,7 +122,11 @@ func TestStorage(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			version, err := storage.Previous(context.Background(), "somebucket", tt.object, tt.version)
+			version, err := mockStorage.Previous(context.Background(), storage.Key{
+				Bucket:  "somebucket",
+				Object:  tt.object,
+				Version: &tt.version,
+			})
 			require.Error(t, err)
 			require.Equal(t, "", version)
 		})
