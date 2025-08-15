@@ -2,8 +2,7 @@ package expiry
 
 import (
 	"context"
-	"crypto/x509"
-	"encoding/pem"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"time"
@@ -27,17 +26,14 @@ func (baf *BoulderAPIFetcher) FetchNotAfter(ctx context.Context, serial *big.Int
 		return time.Time{}, fmt.Errorf("fetching NotAfter for serial %s: %w", formatSerial(serial), err)
 	}
 
-	block, _ := pem.Decode(body)
-	if block == nil {
-		return time.Time{}, fmt.Errorf("parsing PEM for serial %s: %s", formatSerial(serial), string(body))
+	certinfo := struct {
+		NotAfter time.Time `json:"notAfter"`
+	}{}
+	if err := json.Unmarshal(body, &certinfo); err != nil {
+		return time.Time{}, fmt.Errorf("deserializing json certinfo for serial %s: %s", formatSerial(serial), string(body))
 	}
 
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("parsing certificate for serial %s: %s", formatSerial(serial), err)
-	}
-
-	return cert.NotAfter, nil
+	return certinfo.NotAfter, nil
 }
 
 func formatSerial(serial *big.Int) string {
