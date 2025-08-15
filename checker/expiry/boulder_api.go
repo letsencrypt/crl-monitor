@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"net/url"
 	"time"
 
 	"github.com/letsencrypt/crl-monitor/retryhttp"
@@ -19,7 +20,10 @@ type BoulderAPIFetcher struct {
 // serial. So it is specific to Boulder's API, not a generic ACME API client.
 func (baf *BoulderAPIFetcher) FetchNotAfter(ctx context.Context, serial *big.Int) (time.Time, error) {
 	// The baseURL is followed by a hex-encoded serial
-	url := fmt.Sprintf("%s/%s", baf.BaseURL, formatSerial(serial))
+	url, err := url.JoinPath(baf.BaseURL, formatSerial(serial))
+	if err != nil {
+		return time.Time{}, fmt.Errorf("determining boulder URL for serial %s: %w", formatSerial(serial), err)
+	}
 
 	body, err := retryhttp.Get(ctx, url)
 	if err != nil {
