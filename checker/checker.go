@@ -56,7 +56,7 @@ func New(database *db.Database, storage *storage.Storage, fetcher earlyremoval.F
 }
 
 func NewFromEnv(ctx context.Context) (*Checker, error) {
-	boulderBaseURL := BoulderBaseURL.MustRead("Boulder endpoint to fetch certificates from")
+	boulderBaseURL := BoulderBaseURL.MustRead("Boulder endpoint to fetch certificate info from, e.g. https://boulder.example.com/get/certinfo")
 	dynamoTable := DynamoTableEnv.MustRead("DynamoDB table name")
 	dynamoEndpoint, _ := DynamoEndpointEnv.LookupEnv()
 	crlAgeLimit, hasAgeLimit := CRLAgeLimit.LookupEnv()
