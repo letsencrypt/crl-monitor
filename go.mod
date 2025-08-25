@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.19.3
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.43.4
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.83.0
-	github.com/caddyserver/certmagic v0.21.7
+	github.com/caddyserver/certmagic v0.24.0
 	github.com/letsencrypt/boulder v0.20250812.0
 	github.com/libdns/route53 v1.5.1
 	github.com/mholt/acmez/v3 v3.1.2
@@ -42,10 +42,10 @@ require (
 	github.com/go-jose/go-jose/v4 v4.1.2 // indirect
 	github.com/google/certificate-transparency-go v1.3.2-0.20250507091337-0eddb39e94f8 // indirect
 	github.com/jmespath/go-jmespath v0.4.1-0.20220621161143-b0104c826a24 // indirect
-	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
-	github.com/libdns/libdns v0.2.2 // indirect
-	github.com/miekg/dns v1.1.62 // indirect
+	github.com/libdns/libdns v1.0.0 // indirect
+	github.com/miekg/dns v1.1.63 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/weppos/publicsuffix-go v0.40.3-0.20250307081557-c05521c3453a // indirect
