@@ -1,8 +1,6 @@
 module github.com/letsencrypt/crl-monitor
 
-go 1.24.0
-
-toolchain go1.24.2
+go 1.25.0
 
 require (
 	github.com/aws/aws-lambda-go v1.49.0
@@ -12,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.43.4
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.83.0
 	github.com/caddyserver/certmagic v0.21.7
-	github.com/letsencrypt/boulder v0.20250812.0
+	github.com/letsencrypt/boulder v0.20250902.0
 	github.com/libdns/route53 v1.5.1
 	github.com/mholt/acmez/v3 v3.1.2
 	github.com/stretchr/testify v1.10.0
