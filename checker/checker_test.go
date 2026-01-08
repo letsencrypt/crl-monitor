@@ -132,12 +132,28 @@ func Test_nameID(t *testing.T) {
 			want:       "67430855296768143",
 		},
 		{
+			issuerPath: "testdata/ye1.pem",
+			want:       "15121864070385704",
+		},
+		{
+			issuerPath: "testdata/yr1.pem",
+			want:       "27437271743860294",
+		},
+		{
 			issuerPath: "testdata/stg-r3.pem",
 			want:       "58367272336442518",
 		},
 		{
 			issuerPath: "testdata/stg-e1.pem",
 			want:       "4169287449788112",
+		},
+		{
+			issuerPath: "testdata/stg-ye1.pem",
+			want:       "51816688251801090",
+		},
+		{
+			issuerPath: "testdata/stg-yr1.pem",
+			want:       "70136346555307663",
 		},
 	}
 	for _, tt := range tests {
