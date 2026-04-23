@@ -21,7 +21,7 @@ jobs:
           go-version-file: go.mod
       - run: ./build-release.sh
       # Upload to S3:
-      - uses: aws-actions/configure-aws-credentials@v5
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::338276578713:role/crl-monitor-github-action-role
           aws-region: us-west-2
