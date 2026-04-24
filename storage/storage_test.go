@@ -11,6 +11,30 @@ import (
 	"github.com/letsencrypt/crl-monitor/storage/mock"
 )
 
+func TestKeyVersionString(t *testing.T) {
+	v := "abc123"
+	for _, tt := range []struct {
+		name     string
+		key      storage.Key
+		expected string
+	}{
+		{
+			name:     "version exists",
+			key:      storage.Key{Bucket: "b", Object: "o", Version: &v},
+			expected: "abc123",
+		},
+		{
+			name:     "version is nil",
+			key:      storage.Key{Bucket: "b", Object: "o", Version: nil},
+			expected: "unknown",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, tt.key.VersionString())
+		})
+	}
+}
+
 func TestStorage(t *testing.T) {
 	mockStorage := mock.New(t, "somebucket", map[string][]mock.MockObject{
 		"123/0.crl": {

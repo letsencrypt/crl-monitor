@@ -26,6 +26,14 @@ type Key struct {
 	Version        *string
 }
 
+// VersionString returns the version string or "unknown" if unset.
+func (k Key) VersionString() string {
+	if k.Version == nil {
+		return "unknown"
+	}
+	return *k.Version
+}
+
 func New(ctx context.Context) *Storage {
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
@@ -47,12 +55,12 @@ func (s *Storage) Fetch(ctx context.Context, key Key) ([]byte, string, error) {
 		VersionId: key.Version,
 	})
 	if err != nil {
-		return nil, "", fmt.Errorf("retrieving CRL %s %s version %v: %w", key.Bucket, key.Object, key.Version, err)
+		return nil, "", fmt.Errorf("retrieving CRL %s %s version %s: %w", key.Bucket, key.Object, key.VersionString(), err)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, "", fmt.Errorf("reading CRL %s %s version %v: %w", key.Bucket, key.Object, key.Version, err)
+		return nil, "", fmt.Errorf("reading CRL %s %s version %s: %w", key.Bucket, key.Object, key.VersionString(), err)
 	}
 
 	return body, *resp.VersionId, err
@@ -86,7 +94,7 @@ func (s *Storage) Previous(ctx context.Context, key Key) (string, error) {
 	}
 
 	if (!found || prevVersion == nil) && resp.IsTruncated != nil && *resp.IsTruncated {
-		return "", fmt.Errorf("too many versions and pagination not implemented! %+v", key)
+		return "", fmt.Errorf("too many versions and pagination not implemented! bucket:%s object:%s version:%s", key.Bucket, key.Object, key.VersionString())
 	}
 
 	if !found {
