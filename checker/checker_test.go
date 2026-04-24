@@ -16,6 +16,7 @@ import (
 	"github.com/letsencrypt/crl-monitor/checker/testdata"
 	"github.com/letsencrypt/crl-monitor/db"
 	dbmock "github.com/letsencrypt/crl-monitor/db/mock"
+	"github.com/letsencrypt/crl-monitor/storage"
 	storagemock "github.com/letsencrypt/crl-monitor/storage/mock"
 )
 
@@ -163,4 +164,32 @@ func Test_nameID(t *testing.T) {
 			require.Equal(t, tt.want, nameID(issuer))
 		})
 	}
+}
+
+func TestLogSummaryFormatsVersionCorrectly(t *testing.T) {
+	issuer, key := testdata.MakeIssuer(t)
+	issuerName := nameID(issuer)
+	object := fmt.Sprintf("%s/0.crl", issuerName)
+	idpURL := fmt.Sprintf("http://idp/%s", object)
+
+	crl1der := testdata.MakeCRL(t, &testdata.CRL1, idpURL, issuer, key)
+	crl2der := testdata.MakeCRL(t, &testdata.CRL2, idpURL, issuer, key)
+
+	crl1, err := x509.ParseRevocationList(crl1der)
+	require.NoError(t, err)
+	crl2, err := x509.ParseRevocationList(crl2der)
+	require.NoError(t, err)
+
+	oldVer := "oldy"
+	newVer := "newy"
+
+	result := logSummary(
+		crl1, storage.Key{Bucket: "b", Object: object, Version: &oldVer},
+		crl2, storage.Key{Bucket: "b", Object: object, Version: &newVer},
+	)
+
+	formatted := fmt.Sprintf("%+v", result)
+	require.NotContains(t, formatted, "0x", "formatted summary shouldn't contain pointer addresses, but did")
+	require.Contains(t, formatted, "oldy")
+	require.Contains(t, formatted, "newy")
 }
