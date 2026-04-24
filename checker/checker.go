@@ -113,6 +113,14 @@ type Checker struct {
 	issuers  map[string]*x509.Certificate
 }
 
+// storageKey is nearly analogous to storage.Key, except that the Version field
+// is a string
+type storageKey struct {
+	Bucket  string
+	Object  string
+	Version string
+}
+
 // crlSummary is a subset of fields from *x509.RevocationList
 // useful for logging, plus the number of entries and some metadata.
 type crlSummary struct {
@@ -121,7 +129,7 @@ type crlSummary struct {
 	ThisUpdate time.Time
 	NextUpdate time.Time
 	URL        string
-	StorageKey storage.Key
+	StorageKey storageKey
 }
 
 func summary(crl *x509.RevocationList, key storage.Key) crlSummary {
@@ -133,7 +141,11 @@ func summary(crl *x509.RevocationList, key storage.Key) crlSummary {
 		Number:     crl.Number,
 		NumEntries: len(crl.RevokedCertificateEntries),
 		URL:        idp,
-		StorageKey: key,
+		StorageKey: storageKey{
+			Bucket:  key.Bucket,
+			Object:  key.Object,
+			Version: key.VersionString(),
+		},
 	}
 }
 
