@@ -33,6 +33,11 @@ func TestCheck(t *testing.T) {
 		{name: "no removals", prev: &testdata.CRL1, crl: &testdata.CRL2},
 		{name: "remove 1", prev: &testdata.CRL2, crl: &testdata.CRL3},
 		{
+			name: "bit-for-bit identical CRL",
+			prev: &x509.RevocationList{Raw: []byte{0x30, 0x01, 0x00}, Number: big.NewInt(2)},
+			crl:  &x509.RevocationList{Raw: []byte{0x30, 0x01, 0x00}, Number: big.NewInt(2)},
+		},
+		{
 			name: "early removal",
 			prev: &testdata.CRL3,
 			crl:  &testdata.CRL4,

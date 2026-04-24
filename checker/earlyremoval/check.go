@@ -1,6 +1,7 @@
 package earlyremoval
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"log"
@@ -53,6 +54,19 @@ func sample[T any](input []T, max int) []T {
 
 // Check for early removal.  If maxFetch is greater than 0, only check that many serials
 func Check(ctx context.Context, fetcher Fetcher, maxFetch int, prev *x509.RevocationList, crl *x509.RevocationList) ([]EarlyRemoval, error) {
+	// In rare cases, a duplicate CRL version may be uploaded. This causes a flake,
+	// because checker.Diff() expects CRLs to be increasing in version number. It is
+	// valid for duplicate versions to be uploaded, as long as they're bit-for-bit
+	// identical.
+	//
+	// We'll skip this check if the CRLs are identical. We would have checked the
+	// previous CRL version already, so we don't have any work to do on the newer
+	// version.
+	if len(crl.Raw) > 0 && bytes.Equal(prev.Raw, crl.Raw) {
+		log.Printf("previous and current CRL (number %d) are identical; skipping early removal check", crl.Number)
+		return nil, nil
+	}
+
 	diff, err := checker.Diff(prev, crl)
 	if err != nil {
 		return nil, err
