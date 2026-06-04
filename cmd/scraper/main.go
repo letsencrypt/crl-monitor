@@ -182,15 +182,11 @@ format your heart pleases, and GNU date will figure it out.
 		log.Fatalf("unknown issuer for: %s", parsedIssuer)
 	}
 
-	// Listing by the full object key (prefix/36.crl) returns versions of just that shard;
-	// listing by the issuer prefix alone (prefix/) returns versions of every shard.
-	listPrefix := issuer.Prefix + "/" + crl
-
 	target := crl
 	if target == "" {
 		target = "(all shards)"
 	}
-	slog.Info("fetching CRL versions", "issuer", issuer, "shard", target, "prefix", listPrefix)
+	slog.Info("fetching CRL versions", "issuer", issuer, "shard", target)
 
 	ctx := context.Background()
 
@@ -200,7 +196,7 @@ format your heart pleases, and GNU date will figure it out.
 	}
 	client := s3.NewFromConfig(sdkConfig)
 
-	if err := run(ctx, client, listPrefix, issuer, start, end, dir, *flagConcurrency); err != nil {
+	if err := run(ctx, client, issuer, crl, start, end, dir, *flagConcurrency); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -208,50 +204,106 @@ format your heart pleases, and GNU date will figure it out.
 func run(
 	ctx context.Context,
 	client *s3.Client,
-	listPrefix string,
 	issuer Issuer,
+	crl string,
 	start time.Time,
 	end time.Time,
 	dir *os.Root,
 	concurrency int,
 ) error {
-	workers, errored, tx := runWorkers(ctx, concurrency, issuer, client, dir)
+	workers, errored, tx := runDownloadWorkers(ctx, concurrency, issuer, client, dir)
 
-	// Only consider shard objects (prefix/<n>.crl), skipping any stray keys such as
-	// "folder" placeholder objects that an issuer-wide prefix listing might return.
-	shardKey := regexp.MustCompile(`/[0-9]+\.crl$`)
-
-	params := &s3.ListObjectVersionsInput{
-		Bucket: aws.String(issuer.Bucket),
-		Prefix: aws.String(listPrefix),
+	// Determine the shards we're interested in.
+	prefixes, err := shardPrefixes(ctx, client, issuer, crl)
+	if err != nil {
+		close(tx)
+		workers.Wait()
+		return err
 	}
-	paginator := s3.NewListObjectVersionsPaginator(client, params)
+
+	// For each shard, list versions. We parallelize this because otherwise the download workers
+	// become bottlenecked on version enumeration.
+	var (
+		listers sync.WaitGroup
+		listErr atomic.Bool
+		limit   = make(chan struct{}, concurrency)
+	)
+	for _, prefix := range prefixes {
+		limit <- struct{}{}
+		listers.Go(func() {
+			defer func() { <-limit }()
+			if err := listVersions(ctx, client, issuer.Bucket, prefix, start, end, tx); err != nil {
+				slog.Error("failed to list versions", "bucket", issuer.Bucket, "prefix", prefix, "error", err)
+				listErr.Store(true)
+			}
+		})
+	}
+	listers.Wait()
+
+	close(tx)
+	workers.Wait()
+
+	if errored.Load() || listErr.Load() {
+		return errors.New("an error occurred while processing, see error logs")
+	}
+	return nil
+}
+
+// shardPrefixes returns the S3 object keys whose version history should be dumped.
+func shardPrefixes(ctx context.Context, client *s3.Client, issuer Issuer, crl string) ([]string, error) {
+	if crl != "" {
+		return []string{issuer.Prefix + "/" + crl}, nil
+	}
+
+	// List candidate objects.
+	shardKey := regexp.MustCompile(`/[0-9]+\.crl$`)
+	paginator := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
+		Bucket: aws.String(issuer.Bucket),
+		Prefix: aws.String(issuer.Prefix + "/"),
+	})
+	var prefixes []string
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list shards: %w", err)
+		}
+		for _, obj := range page.Contents {
+			if shardKey.MatchString(*obj.Key) {
+				prefixes = append(prefixes, *obj.Key)
+			}
+		}
+	}
+	return prefixes, nil
+}
+
+func listVersions(
+	ctx context.Context,
+	client *s3.Client,
+	bucket string,
+	prefix string,
+	start time.Time,
+	end time.Time,
+	tx chan<- types.ObjectVersion,
+) error {
+	paginator := s3.NewListObjectVersionsPaginator(client, &s3.ListObjectVersionsInput{
+		Bucket: aws.String(bucket),
+		Prefix: aws.String(prefix),
+	})
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to query S3: %w", err)
 		}
 		for _, version := range page.Versions {
-			if !shardKey.MatchString(*version.Key) {
-				continue
-			}
 			if !version.LastModified.Before(start) && !version.LastModified.After(end) {
 				tx <- version
 			}
 		}
 	}
-
-	close(tx)
-	workers.Wait()
-
-	if errored.Load() {
-		return errors.New("an error occurred while processing, see error logs")
-	} else {
-		return nil
-	}
+	return nil
 }
 
-func runWorkers(ctx context.Context,
+func runDownloadWorkers(ctx context.Context,
 	concurrency int,
 	issuer Issuer,
 	client *s3.Client,
@@ -266,7 +318,7 @@ func runWorkers(ctx context.Context,
 		wg.Go(func() {
 			for version := range rx {
 				slog.Info(
-					"processing version",
+					"downloading",
 					"bucket", issuer.Bucket,
 					"key", *version.Key,
 					"version", *version.VersionId,
