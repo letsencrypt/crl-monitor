@@ -98,21 +98,21 @@ format.
 
 Examples:
   Fetch all versions from between 2026-06-01 and 2026-06-03.
-    crl-history -start "2026-06-01 00:00:00" -end "2026-06-03 23:59:59" \
+    scraper -start "2026-06-01 00:00:00" -end "2026-06-03 23:59:59" \
       http://stg-e6.c.lencr.org/36.crl
 
   Fetch all versions since 2026-06-01.
-    crl-history -start "2026-06-01 00:00:00" http://r13.c.lencr.org/128.crl
+    scraper -start "2026-06-01 00:00:00" http://r13.c.lencr.org/128.crl
 
   Fetch all versions of a CRL given its URL and output them to your current
   working directory.
-    crl-history http://stg-e6.c.lencr.org/36.crl
+    scraper http://stg-e6.c.lencr.org/36.crl
 
   Fetch every shard belonging to an intermediate.
-    crl-history http://r13.c.lencr.org/
+    scraper http://r13.c.lencr.org/
 
   Fetch all versions and output them to a folder foo/
-    crl-history -output foo/ http://stg-e6.c.lencr.org/36.crl
+    scraper -output foo/ http://stg-e6.c.lencr.org/36.crl
 `)
 		fmt.Fprintln(flag.CommandLine.Output(), "Options:")
 		flag.PrintDefaults()
