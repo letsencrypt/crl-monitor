@@ -10,11 +10,8 @@ import (
 	"log"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path"
 	"regexp"
-	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -94,7 +91,19 @@ a shard (e.g. http://r13.c.lencr.org/) to fetch every shard's history at once.
 You MUST be logged into the AWS CLI under an account with access to the CRL
 buckets.
 
+You SHOULD limit your query using -start and -end, since the default CRL
+version retention means you're going to otherwise download _a lot_ of versions
+Time intervals are inclusive. -start and -end are in YYYY-MM-DD HH:MM:SS
+format.
+
 Examples:
+  Fetch all versions from between 2026-06-01 and 2026-06-03.
+    crl-history -start "2026-06-01 00:00:00" -end "2026-06-03 23:59:59" \
+      http://stg-e6.c.lencr.org/36.crl
+
+  Fetch all versions since 2026-06-01.
+    crl-history -start "2026-06-01 00:00:00" http://r13.c.lencr.org/128.crl
+
   Fetch all versions of a CRL given its URL and output them to your current
   working directory.
     crl-history http://stg-e6.c.lencr.org/36.crl
@@ -104,30 +113,22 @@ Examples:
 
   Fetch all versions and output them to a folder foo/
     crl-history -output foo/ http://stg-e6.c.lencr.org/36.crl
-
-  Fetch all versions from between 1 day ago and 2 days ago.
-    crl-history -start "2 days ago" -end "1 day ago" \
-      http://stg-e6.c.lencr.org/36.crl
-
--start and -end shell out to GNU date for datetime parsing. See man date(1)
-section DATE STRING for more details. Usually you can just type a date in any
-format your heart pleases, and GNU date will figure it out.
 `)
 		fmt.Fprintln(flag.CommandLine.Output(), "Options:")
 		flag.PrintDefaults()
 	}
 	flag.Func("start", "date range start", func(s string) error {
-		d, err := gdate(s)
+		d, err := time.Parse(time.DateTime, s)
 		if err != nil {
-			return fmt.Errorf("gdate: %w", err)
+			return fmt.Errorf("time.Parse: %w", err)
 		}
 		flagDateStart = &d
 		return nil
 	})
 	flag.Func("end", "date range end", func(s string) error {
-		d, err := gdate(s)
+		d, err := time.Parse(time.DateTime, s)
 		if err != nil {
-			return fmt.Errorf("gdate: %w", err)
+			return fmt.Errorf("time.Parse: %w", err)
 		}
 		flagDateEnd = &d
 		return nil
@@ -373,40 +374,4 @@ func runDownloadWorkers(ctx context.Context,
 		})
 	}
 	return &wg, &errored, rx
-}
-
-// Gdate returns the output of `date -d`. This is useful for getting time from a human readable
-// string, without having to stress out about format. See `man(1) date`.
-//
-// This only works on MacOS or Linux, with GNU coreutils installed.
-//
-// This SHOULD NOT be exposed to untrusted input.
-func gdate(date string) (time.Time, error) {
-	gdate, err := gdateBinary()
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	cmd, err := exec.Command(gdate, "-d", date, `+%s`).Output()
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	t, err := strconv.ParseInt(strings.TrimSpace(string(cmd)), 10, 64)
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	return time.Unix(t, 0), nil
-}
-
-func gdateBinary() (string, error) {
-	switch runtime.GOOS {
-	case "linux":
-		return "date", nil
-	case "darwin":
-		return "gdate", nil
-	default:
-		return "", fmt.Errorf("unknown platform: %s", runtime.GOOS)
-	}
 }
