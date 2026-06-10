@@ -28,6 +28,9 @@ revocation has been published, so the `churner` won't alert about them
 It then marks as completed (deletes) any `churner`-issued certificates that show up on
 the new CRL.
 
+The `scraper` is for when things have gone horribly wrong. Run it locally to fetch all versions
+of CRLs. You can then perform forensics on the downloaded CRL corpus.
+
 ## Build and Deployment
 
 This repository has two binaries named `checker` and two binaries named `churner`. The
