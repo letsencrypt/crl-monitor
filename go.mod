@@ -13,7 +13,7 @@ require (
 	github.com/letsencrypt/boulder v0.20260526.0
 	github.com/libdns/route53 v1.6.2
 	github.com/mholt/acmez/v3 v3.1.6
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 )
 
 require (
@@ -36,14 +36,12 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.42.1 // indirect
 	github.com/aws/smithy-go v1.25.1 // indirect
 	github.com/caddyserver/zerossl v0.1.5 // indirect
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/google/certificate-transparency-go v1.3.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/libdns/libdns v1.1.1 // indirect
 	github.com/miekg/dns v1.1.72 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/weppos/publicsuffix-go v0.50.3 // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
 	github.com/zmap/zcrypto v0.0.0-20260109180747-df961ee46a6c // indirect
