@@ -1,6 +1,6 @@
 module github.com/letsencrypt/crl-monitor
 
-go 1.26.0
+go 1.27.0
 
 require (
 	github.com/aws/aws-lambda-go v1.55.1
@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.69.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.2
 	github.com/caddyserver/certmagic v0.25.6
-	github.com/letsencrypt/boulder v0.20260921.0
+	github.com/letsencrypt/boulder v0.20261013.0
 	github.com/libdns/route53 v1.6.2
 	github.com/mholt/acmez/v3 v3.1.7
 	github.com/stretchr/testify v1.12.1
@@ -54,7 +54,7 @@ require (
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260803160001-6ac0973c030d // indirect
 	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
