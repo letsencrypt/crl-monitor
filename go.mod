@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.72.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.6
 	github.com/caddyserver/certmagic v0.25.6
-	github.com/letsencrypt/boulder v0.20261020.1
+	github.com/letsencrypt/boulder v0.20261027.0
 	github.com/libdns/route53 v1.6.2
 	github.com/mholt/acmez/v3 v3.1.7
 	github.com/stretchr/testify v1.12.1
