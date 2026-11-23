@@ -23,9 +23,9 @@ var CRL1 = x509.RevocationList{
 	NextUpdate: Now.Add(24 * time.Hour),
 	Number:     big.NewInt(1),
 	RevokedCertificateEntries: []x509.RevocationListEntry{
-		{SerialNumber: big.NewInt(1), RevocationTime: Now},
-		{SerialNumber: big.NewInt(2), RevocationTime: Now},
-		{SerialNumber: big.NewInt(3), RevocationTime: Now},
+		{SerialNumber: Serial(1), RevocationTime: Now},
+		{SerialNumber: Serial(2), RevocationTime: Now},
+		{SerialNumber: Serial(3), RevocationTime: Now},
 	},
 }
 
@@ -35,9 +35,9 @@ var CRL2 = x509.RevocationList{
 	NextUpdate: Now.Add(24 * time.Hour),
 	Number:     big.NewInt(2),
 	RevokedCertificateEntries: []x509.RevocationListEntry{
-		{SerialNumber: big.NewInt(1), RevocationTime: Now},
-		{SerialNumber: big.NewInt(2), RevocationTime: Now},
-		{SerialNumber: big.NewInt(3), RevocationTime: Now},
+		{SerialNumber: Serial(1), RevocationTime: Now},
+		{SerialNumber: Serial(2), RevocationTime: Now},
+		{SerialNumber: Serial(3), RevocationTime: Now},
 	},
 }
 
@@ -47,8 +47,8 @@ var CRL3 = x509.RevocationList{
 	NextUpdate: Now.Add(24 * time.Hour),
 	Number:     big.NewInt(3),
 	RevokedCertificateEntries: []x509.RevocationListEntry{
-		{SerialNumber: big.NewInt(2), RevocationTime: Now},
-		{SerialNumber: big.NewInt(3), RevocationTime: Now},
+		{SerialNumber: Serial(2), RevocationTime: Now},
+		{SerialNumber: Serial(3), RevocationTime: Now},
 	},
 }
 
@@ -58,7 +58,7 @@ var CRL4 = x509.RevocationList{
 	NextUpdate: Now.Add(24 * time.Hour),
 	Number:     big.NewInt(4),
 	RevokedCertificateEntries: []x509.RevocationListEntry{
-		{SerialNumber: big.NewInt(3), RevocationTime: Now},
+		{SerialNumber: Serial(3), RevocationTime: Now},
 	},
 }
 
@@ -77,7 +77,7 @@ var CRL6 = x509.RevocationList{
 	NextUpdate: Now.Add(24 * time.Hour),
 	Number:     big.NewInt(1),
 	RevokedCertificateEntries: []x509.RevocationListEntry{
-		{SerialNumber: big.NewInt(4213), RevocationTime: Now},
+		{SerialNumber: Serial(4213), RevocationTime: Now},
 	},
 }
 
@@ -88,8 +88,14 @@ var CRL7 = x509.RevocationList{
 	NextUpdate: Now.Add(25 * time.Hour),
 	Number:     big.NewInt(2),
 	RevokedCertificateEntries: []x509.RevocationListEntry{
-		{SerialNumber: big.NewInt(4213), RevocationTime: Now},
+		{SerialNumber: Serial(4213), RevocationTime: Now},
 	},
+}
+
+// Serial returns a serial greater than 100 bits which satisfies
+// https://letsencrypt.org/documents/isrg-cp-cps-v6.3/#subscriber-(server)-certificate-profile
+func Serial(n int64) *big.Int {
+	return new(big.Int).Lsh(big.NewInt(n), 101)
 }
 
 func MakeIssuer(t *testing.T) (*x509.Certificate, crypto.Signer) {
