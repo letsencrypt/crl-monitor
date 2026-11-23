@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
-	"math/big"
 	"testing"
 	"time"
 
@@ -22,10 +21,10 @@ import (
 
 func TestCheck(t *testing.T) {
 	fetcher := expirymock.Fetcher{}
-	fetcher.AddTestData(big.NewInt(1), testdata.Now.Add(30*time.Minute))
+	fetcher.AddTestData(testdata.Serial(1), testdata.Now.Add(30*time.Minute))
 	// Cert 2 expires between crl 3 and 4
 	cert2expiry := testdata.Now.Add(3*time.Hour + 30*time.Minute)
-	fetcher.AddTestData(big.NewInt(2), cert2expiry)
+	fetcher.AddTestData(testdata.Serial(2), cert2expiry)
 
 	issuer, key := testdata.MakeIssuer(t)
 
@@ -33,9 +32,9 @@ func TestCheck(t *testing.T) {
 	shouldBeGood := fmt.Sprintf("%s/should-be-good.crl", issuerName)
 	earlyRemoval := fmt.Sprintf("%s/early-removal.crl", issuerName)
 	certificatesHaveCRLDP := fmt.Sprintf("%s/certificates-have-crldp.crl", issuerName)
-	shouldBeGoodURL := fmt.Sprintf("http://idp/%s", shouldBeGood)
-	earlyRemovalURL := fmt.Sprintf("http://idp/%s", earlyRemoval)
-	certificatesHaveCRLDPURL := fmt.Sprintf("http://idp/%s", certificatesHaveCRLDP)
+	shouldBeGoodURL := fmt.Sprintf("http://idp.example.com/%s", shouldBeGood)
+	earlyRemovalURL := fmt.Sprintf("http://idp.example.com/%s", earlyRemoval)
+	certificatesHaveCRLDPURL := fmt.Sprintf("http://idp.example.com/%s", certificatesHaveCRLDP)
 
 	crl1der := testdata.MakeCRL(t, &testdata.CRL1, shouldBeGoodURL, issuer, key)
 	crl2der := testdata.MakeCRL(t, &testdata.CRL2, shouldBeGoodURL, issuer, key)
@@ -92,9 +91,9 @@ func TestCheck(t *testing.T) {
 	// Insert some serials in the "unseen-certificates" table to be checked.
 	serial := testdata.CRL1.RevokedCertificateEntries[0].SerialNumber
 	require.NoError(t, checker.db.AddCert(ctx, &x509.Certificate{SerialNumber: serial}, testdata.Now))
-	shouldNotBeSeen := big.NewInt(12345)
+	shouldNotBeSeen := testdata.Serial(12345)
 	require.NoError(t, checker.db.AddCert(ctx, &x509.Certificate{SerialNumber: shouldNotBeSeen}, testdata.Now))
-	mismatchCRLDistributionPoint := big.NewInt(4213)
+	mismatchCRLDistributionPoint := testdata.Serial(4213)
 
 	require.NoError(t, checker.Check(ctx, bucket, shouldBeGood, nil))
 
@@ -170,7 +169,7 @@ func TestLogSummaryFormatsVersionCorrectly(t *testing.T) {
 	issuer, key := testdata.MakeIssuer(t)
 	issuerName := nameID(issuer)
 	object := fmt.Sprintf("%s/0.crl", issuerName)
-	idpURL := fmt.Sprintf("http://idp/%s", object)
+	idpURL := fmt.Sprintf("http://idp.example.com/%s", object)
 
 	crl1der := testdata.MakeCRL(t, &testdata.CRL1, idpURL, issuer, key)
 	crl2der := testdata.MakeCRL(t, &testdata.CRL2, idpURL, issuer, key)

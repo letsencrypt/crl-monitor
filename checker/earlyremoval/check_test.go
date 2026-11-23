@@ -3,6 +3,7 @@ package earlyremoval
 import (
 	"context"
 	"crypto/x509"
+	"fmt"
 	"math/big"
 	"math/rand/v2"
 	"testing"
@@ -19,10 +20,10 @@ func TestCheck(t *testing.T) {
 
 	mockFetcher := mock.Fetcher{}
 	// Cert 1 expires between crl 1 and 2
-	mockFetcher.AddTestData(big.NewInt(1), now.Add(30*time.Minute))
+	mockFetcher.AddTestData(testdata.Serial(1), now.Add(30*time.Minute))
 	// Cert 2 expires between crl 3 and 4
 	cert2expiry := now.Add(3*time.Hour + 30*time.Minute)
-	mockFetcher.AddTestData(big.NewInt(2), cert2expiry)
+	mockFetcher.AddTestData(testdata.Serial(2), cert2expiry)
 
 	for _, tt := range []struct {
 		name     string
@@ -42,7 +43,7 @@ func TestCheck(t *testing.T) {
 			prev: &testdata.CRL3,
 			crl:  &testdata.CRL4,
 			expected: []EarlyRemoval{
-				{Serial: big.NewInt(2), NotAfter: cert2expiry},
+				{Serial: testdata.Serial(2), NotAfter: cert2expiry},
 			}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -57,7 +58,7 @@ func TestCheck(t *testing.T) {
 		prev          *x509.RevocationList
 		crl           *x509.RevocationList
 	}{
-		{expectedError: "unknown serial 3", prev: &testdata.CRL4, crl: &testdata.CRL5},
+		{expectedError: fmt.Sprintf("unknown serial %d", testdata.Serial(3)), prev: &testdata.CRL4, crl: &testdata.CRL5},
 		{expectedError: "old CRL does not precede new CRL", prev: &testdata.CRL2, crl: &testdata.CRL1},
 	} {
 		t.Run(tt.expectedError, func(t *testing.T) {
