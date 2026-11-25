@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.115.0
 	github.com/caddyserver/certmagic v0.25.6
 	github.com/letsencrypt/boulder v0.20261117.0
-	github.com/libdns/route53 v1.6.2
+	github.com/libdns/route53 v1.6.3
 	github.com/mholt/acmez/v3 v3.1.7
 	github.com/stretchr/testify v1.12.1
 )
@@ -29,7 +29,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.13.12 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.12 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.12 // indirect
-	github.com/aws/aws-sdk-go-v2/service/route53 v1.62.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/route53 v1.70.10 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.13.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.39.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.5 // indirect
